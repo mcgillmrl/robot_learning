@@ -1,0 +1,15 @@
+<launch>
+
+    <arg name="topic_description" default="aqua/back2flipper_topics.yaml"/>
+    <arg name="experience_rate" default="500"/>
+    <arg name="slop" default="0.05"/>
+
+    <node name="topics_to_vector" pkg="robot_learning" type="topics_to_vector.py" output="screen">
+        <!-- remap from="/aqua/state" to="/aqua/state_reparameterized"/-->
+        <rosparam command="load" file="$(find robot_learning)/launch/$(arg topic_description)"/>
+        <!-- this is a parameter for synchronizing  multiple topics (how much to wait for missing messages) -->
+        <param name="slop" value="$(arg slop)"/>
+        <!-- the rate at which we want to publish the state for the rbf policy -->
+        <param name="rate" value="$(arg experience_rate)"/>
+    </node>
+</launch>

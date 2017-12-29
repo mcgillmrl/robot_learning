@@ -1,0 +1,19 @@
+<launch>
+  <arg name="learning_task_parameters" default="aqua/cbk_6.yaml"/>
+
+  <!-- bridge observations and actions streams for RL with ROS topics-->
+  <include file="$(find robot_learning)/launch/topics2vec.launch">
+    <arg name="topic_description" value="aqua/back2flipper_topics.yaml"/>
+    <arg name="experience_rate" value="500"/>
+    <arg name="slop" value="0.05"/>
+  </include>
+
+  <!--bridge signals for restting and stopping the robot-->
+  <node pkg="robot_learning" type="signal_bridge_node.py" name="signal_bridge_node" output="screen">
+  </node>
+
+
+  <node pkg="robot_learning" type="task_client_kusanagi.py" output="screen" name="task_client"/>
+  <!--include file="$(find aqua_rl)/launch/logger.launch"/-->
+
+</launch>
