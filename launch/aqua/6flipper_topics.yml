@@ -1,0 +1,33 @@
+# experience_state_topics is a list of topics we want to subscribe to 
+# for populating the PILCO state vector.
+# If no filter is specified, the node will get all the numeric values
+# from the topic.
+#
+# The order in which the PILCO state vector will be populated is
+# [topic_1_field_1,topic_1_field_2,...,topic1_field_N1, topic_2_field_1, ... , topic_M_field_NM]
+experience_state_topics: [
+    {topic_name: /aqua/state,
+    type: {package: aquacore, name: StateMsg},
+    filter: ["RollAngle","PitchAngle","YawAngle", "Depth"]},
+    {topic_name: /aqua/imu,
+    type: {package: sensor_msgs, name: Imu},
+    filter: ["angular_velocity.x","angular_velocity.y","angular_velocity.z"]}
+]
+
+# experience_command_topics corresponds to the topics we want to publish when
+# stepping the policy computed with PILCO
+# As shown in this example, we can define default values for some fields in the
+# message that will be published
+experience_command_topics: [
+    { topic_name: /aqua/periodic_leg_command,
+      type: {package: aquacore, name: PeriodicLegCommand},
+      filter: ["amplitudes","leg_offsets"],
+      default_values: { frequencies: 2.5 } }
+]
+preprocessing_operations: {
+    RollAngle: ['radians'],
+    PitchAngle: ['radians'],
+    YawAngle: ['radians'],
+    'amplitudes': ['square'],
+}
+
