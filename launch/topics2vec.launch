@@ -1,6 +1,6 @@
 <launch>
 
-    <arg name="topic_description" default="aqua/back2flipper_topics.yaml"/>
+    <arg name="topic_description" default="aqua/6flipper_topics.yml"/>
     <arg name="experience_rate" default="500"/>
     <arg name="slop" default="0.05"/>
 
