@@ -1,52 +1,37 @@
 #!/usr/bin/env python2
+import socket
+from kusanagi.ghost.algorithms import mc_pilco
+from time import sleep
 
-import argparse
-import rospy
-import yaml
-from ros_plant import ROSPlant
-
-from kusanagi.base import apply_controller
-from kusanagi.ghost.control import NNPolicy, RandPolicy
-
-def parse_config(config_path):
+def model_learning_server():
     '''
-        loads configuration for learning tasks (policy and costs parameters)
-        from a yaml file
+    launches a subprocess that will listen on a socket for new
     '''
-    with open(config_path, 'r') as f:
-        config_data = yaml.load(f)
-        print config_data
-        return config_data
+    # start tcp socket  server
+    sock = socket.socket()
 
-def run_client():
+
+def launch_policy_learning_process():
     pass
 
-if __name__=='__main__':
-    parser = argparse.ArgumentParser(
-        'rosrun robot_learning task_client.py')
-    parser.add_argument(
-        'config_path', metavar='FILE',
-        help='A YAML file containing the configuration for the learning task.',
-        type=str)
-    parser.add_argument(
-        '-p', '--playback', help='Whether to run learnedpolicies only',
-        action='store_true')
-    parser.add_argument(
-        '-t', '--tasks',
-        help='Tasks from the configuration file to be executed. Default is all.',
-        type=str, nargs='+', default=[])
-    args = parser.parse_args()
-    rospy.init_node('kusanagi_ros')
 
-    # import yaml
-    
-    config = parse_config(args.config_path)
-    print config
+def mc_pilco_opt(task_name, task_spec, experience, task_queue):
+    # update experience dataset
+    print experiment_utils
+    task_queue.put((task_name, task_spec))
+    print 'called mc_pilco learner'
+    sleep(10)
 
 
+def polopt(task_spec):
+    loss_kwargs = kwargs.pop('loss_kwargs', {})
+    polopt_kwargs = kwargs.pop('polopt_kwargs', {})
+    # build loss function
+    loss, inps, updts = mc_pilco.get_loss(
+        pol, dyn, cost, **loss_kwargs)
 
-    # init plant
-    #env = ROSPlant()
+    inps += kwargs.pop('extra_inps', [])
 
-    # init policy
-    #pol = NNPolicy(sum(env.observation_space.shape), maxU=[])
+    # set objective of policy optimizer
+    polopt.set_objective(loss, pol.get_params(symbolic=True),
+                         inps, updts, **polopt_kwargs)
