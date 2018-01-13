@@ -12,13 +12,13 @@ from JoyState import JoyState
 
 class AquaMarshallNode:
   def __init__(self):
-    rospy.init_node('aqua_marshall_node')
+    rospy.init_node('rl_marshall_node')
     
-    self.FSM = 'ap' # possible values: 'ap'/'rl'/'ap_prompt'
+    self.FSM = 'ap'  # possible values: 'ap'/'rl'/'ap_prompt'
     self.prev_joy_state = None
 
     self.plc_out_pub = rospy.Publisher('/aqua/periodic_leg_command', PeriodicLegCommand, queue_size=10)
-    self.fsm_pub = rospy.Publisher('/aqua_marshall/mode', String,queue_size=10, latch=True)
+    self.fsm_pub = rospy.Publisher('/rl_marshall/mode', String,queue_size=10, latch=True)
     self.trigger_start_pub = rospy.Publisher('/aqua_rl/trigger_start', Empty, queue_size=10)
     self.trigger_stop_pub = rospy.Publisher('/aqua_rl/trigger_stop', Empty, queue_size=10)
     
@@ -30,7 +30,7 @@ class AquaMarshallNode:
     rospy.wait_for_service('/aqua/reset_3D_autopilot_state')
     self.reset_ap_cln = rospy.ServiceProxy('/aqua/reset_3D_autopilot_state', EmptySrv)
 
-    self.set_mode_svr = rospy.Service('/aqua_marshall/set_mode', SetString, self.handle_set_mode)
+    self.set_mode_svr = rospy.Service('/rl_marshall/set_mode', SetString, self.handle_set_mode)
     self.trigger_start_sub = rospy.Subscriber('/aqua_rl/trigger_start', Empty, self.handle_trigger_start)
     self.trigger_stop_sub = rospy.Subscriber('/aqua_rl/trigger_stop', Empty, self.handle_trigger_stop)
     self.trigger_reset_sub = rospy.Subscriber('/aqua_rl/trigger_reset', Empty, self.handle_trigger_reset)
