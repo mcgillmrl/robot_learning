@@ -25,21 +25,22 @@ import math
 # load_package and load message are shamelessly copied from the
 # rosserial_python SerialClient code
 def load_package(package_name, directory):
-    #check if its in the python path
+    # check if its in the python path
     in_path = False
     path = sys.path
-    pkg_src = package_name+'/src' #check for the source directory which
+    # check for the source directory which
     # is added to path by roslib boostrapping
+    pkg_src = package_name+'/src'
     for entry in sys.path:
         if pkg_src in entry:
             in_path = True
     if not in_path:
         roslib.load_manifest(package_name)
     try:
-        package_module = __import__( package_name + '.' + directory )
+        package_module = __import__(package_name + '.' + directory)
     except:
-        rospy.logerr( "Cannot import package : %s"% package_name )
-        rospy.logerr( "sys.path was " + str(path) )
+        rospy.logerr("Cannot import package : %s" % package_name)
+        rospy.logerr("sys.path was " + str(path))
         return None
     return package_module
 
@@ -51,7 +52,7 @@ def load_message(package_name, message_name):
 # end of stolen code
 
 
-def get_all_numeric_fields(msg, ignore_header = True):
+def get_all_numeric_fields(msg, ignore_header=True):
     # if we have a number type, return a List with a single element
     if isinstance(msg, Number):
         return [msg]
