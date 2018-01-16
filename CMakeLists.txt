@@ -38,6 +38,7 @@ add_message_files(
 add_service_files(
   FILES
   T2VInfo.srv
+  Reset.srv
 )
 generate_messages(DEPENDENCIES std_msgs)
 
