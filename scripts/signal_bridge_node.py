@@ -30,23 +30,10 @@ class SignalBridgeNode(object):
 
     def reset_robot(self, req):
         rospy.loginfo("%s: resetting plant" % self.name)
-
         return EmptySrvResponse()
 
     def stop_robot(self, req):
         rospy.loginfo("%s: stopping plant" % self.name)
-        if self.is_sim:
-            try:
-                self.pause()
-            except rospy.ServiceException, e:
-                rospy.logerr(
-                  "%s: service call(s) failed in stop_robot: %s" % (name, e))
-
-        else:  # not self.is_sim
-            self.trigger_stop_pub.publish()
-            while self.marshall_mode == 'rl':
-                rospy.sleep(0.01)
-
         return EmptySrvResponse()
 
     def callback_to_trigger_start(self, msg):
@@ -94,6 +81,14 @@ class GazeboSignalBridgeNode(SignalBridgeNode):
                                                                    e))                                                           
         return EmptySrvResponse()
 
+    def stop_robot(self, req):
+        try:
+            self.pause()
+        except rospy.ServiceException, e:
+            rospy.logerr(
+                "%s: service call(s) failed in stop_robot: %s" % (name, e))
+        return EmptySrvResponse()
+
 
 class MarshallSignalBridgeNode(SignalBridgeNode):
     def __init__(self):
@@ -115,6 +110,12 @@ class MarshallSignalBridgeNode(SignalBridgeNode):
         self.marshall_mode_sub = rospy.Subscriber(
             '/rl_marshall/mode', String, self.callback_to_marshall_mode)
         super(MarshallSignalBridgeNode, self).ros_init()
+
+    def stop_robot(self, req):
+        self.trigger_stop_pub.publish()
+        while self.marshall_mode == 'rl':
+            rospy.sleep(0.01)
+        return EmptySrvResponse()
 
 
 if __name__ == "__main__":

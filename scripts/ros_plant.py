@@ -52,6 +52,7 @@ class ROSPlant(gym.Env):
             queue_size=-1)
 
         # get initial state
+        self.reset()
         rospy.loginfo(
             '[%s] waiting for first experience data msg...' % (self.name))
 
@@ -180,7 +181,7 @@ class ROSPlant(gym.Env):
             calls the registered reset service with the desired state.
         '''
         self.reset_srv()
-        t, state, cmd = self.wait_for_state(dt=0.1*self.dt)
+        self.t, self.state, cmd = self.wait_for_state(dt=0.1*self.dt)
         return self.state
 
     def _close(self):
@@ -188,3 +189,9 @@ class ROSPlant(gym.Env):
             class any registered service with empty messages
         '''
         pass
+
+    def stop(self):
+        '''
+            calls the registered reset service with the desired state.
+        '''
+        self.stop_srv()
