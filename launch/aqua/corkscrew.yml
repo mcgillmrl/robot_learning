@@ -3,12 +3,16 @@ output_directory: /data/robot_learning/
 default_task_params: &default_task_params
   initial_random_trials: 4
   horizon_secs: 20.0
+  discount: 1.0
   angle_dims: &default_angle_dims [0, 1, 2]
   random_walk: True
   wrap_angles: True
+  return_best: False
+  n_samples: 100
 
 default_policy_params: &default_policy_params
-  input_dims: 7
+  input_dims: 7  # TODO, this should be inferred from data
+  angle_dims: *default_angle_dims
   maxU: !numpy "[np.sqrt(np.pi/3), np.sqrt(np.pi/3),
                  np.sqrt(np.pi/3), np.sqrt(np.pi/3),
                  np.sqrt(np.pi/3), np.sqrt(np.pi/3),
@@ -16,8 +20,9 @@ default_policy_params: &default_policy_params
   sat: !!python/name:kusanagi.ghost.control.saturation.tanhSat
 
 default_bnn_params: &default_bnn_params
+  # TODO, these dimensions should be inferred from data
   idims: 22 # non_angle_state_dims + 2*angle_state_dims + controls
-  odims: 6 # state_dims
+  odims: 7 # state_dims
 
 default_network_spec: &default_network_spec
   hidden_dims: !numpy '[200]*2'
@@ -36,31 +41,41 @@ default_plant: &default_plant_params
         cov: !numpy np.eye(7)*(0.1**2)
     name: 'AquaRobotEnv'
 
-default_loss_fn: &default_loss_fn !!python/object/apply:kusanagi.shell.cost.build_distance_based_cost
-  kwds: &default_loss_fn_kwds 
-    loss_func: !!python/name:kusanagi.shell.cost.quadratic_saturating_loss 
+default_loss_graph: &default_loss_graph !!python/object/apply:functools.partial
+  func_: &func_ !!python/name:kusanagi.shell.cost.distance_based_cost
+  args: [*func_]
+  kwds:  
+    loss_func: !!python/name:kusanagi.shell.cost.quadratic_saturating_loss
     cw: 1.0
     expl: 0.0
+
+default_loss_fn: &default_loss_fn !!python/object/apply:kusanagi.shell.cost.build_loss_func
+  args: [*default_loss_graph]
+  kwds: &default_loss_fn_params
     angle_dims: !!python/object/apply:theano.tensor.ivector ['angle_dims']
+    target: !!python/object/apply:theano.tensor.vector ['target']
+    Q: !!python/object/apply:theano.tensor.matrix ['Q']
 
 default_Q: 
   angle: &angle_Q !numpy np.diag([1.0, 0, 0, 0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]) # Use this for angle-stabilization tasks
   roll: &rollrate_Q !numpy np.diag([1.0, 1.0, 0, 0, 0, 0, 1.0, 1.0, 1.0, 1.0]) # Use this for fixed roll-rate tasks 
 
-#default_polopt_fn:
-#  fn: !!python/object/apply:
-#  args: []
-#  kwargs: {}
-
 tasks:
   corkscrew:
     <<: *default_task_params
-    cost: &cs_cost !!python/object/apply:functools.partial
-      args: [*default_loss_fn]
-      kwds:
+    cost:
+      params: &cs_cost_params
         angle_dims: *default_angle_dims
         target: [0, 0, 0, 1.0, 0.7, 0, 0]
         Q: *rollrate_Q
+      fn: &cs_cost !!python/object/apply:functools.partial
+        args: [*default_loss_fn]
+        kwds:
+          <<: *cs_cost_params
+      graph: !!python/object/apply:functools.partial
+        args: [*default_loss_graph]
+        kwds:
+          <<: *default_loss_fn_params
     policy: !!python/object/apply:kusanagi.ghost.control.NNPolicy
       kwds:
         <<: *default_policy_params
@@ -71,10 +86,19 @@ tasks:
         <<: *default_bnn_params
         network_spec:
           <<: *default_network_spec
+          p_input: 0.1
           dropout_class: !!python/name:kusanagi.ghost.regression.layers.DenseLogNormalDropoutLayer
     plant:
       <<: *default_plant_params
       dt: 0.5
       loss_func: *cs_cost
-
-
+    optimizer: !!python/object/apply:kusanagi.ghost.optimizers.SGDOptimizer
+        kwds:
+          min_method: 'ADAM'
+          max_evals: 1000
+    polopt:
+      learning_rate: 1e-3
+      build_loss_kwargs:
+        <<: *default_loss_fn_params
+      set_objective_kwargs:
+        lr: !!python/object/apply:theano.tensor.scalar ['lr']
