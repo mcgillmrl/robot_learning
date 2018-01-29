@@ -13,7 +13,7 @@ from JoyState import JoyState
 class AquaMarshallNode:
   def __init__(self):
     rospy.init_node('rl_marshall_node')
-    
+
     self.FSM = 'ap'  # possible values: 'ap'/'rl'/'ap_prompt'
     self.prev_joy_state = None
 
@@ -21,7 +21,7 @@ class AquaMarshallNode:
     self.fsm_pub = rospy.Publisher('/rl_marshall/mode', String,queue_size=10, latch=True)
     self.trigger_start_pub = rospy.Publisher('/aqua_rl/trigger_start', Empty, queue_size=10)
     self.trigger_stop_pub = rospy.Publisher('/aqua_rl/trigger_stop', Empty, queue_size=10)
-    
+
     rospy.loginfo('%s: waiting for /aqua/set_3Dauto_mode...' % rospy.get_name())
     rospy.wait_for_service('/aqua/set_3Dauto_mode')
     self.set_ap_mode_cln = rospy.ServiceProxy('/aqua/set_3Dauto_mode', SetAutopilotMode)
@@ -37,32 +37,29 @@ class AquaMarshallNode:
     self.plc_in_ap_sub = rospy.Subscriber('/sandbox/AP/periodic_leg_command', PeriodicLegCommand, self.handle_ap_plc)
     self.plc_in_rl_sub = rospy.Subscriber('/sandbox/RL/periodic_leg_command', PeriodicLegCommand, self.handle_rl_plc)
     self.joy_sub = rospy.Subscriber('/joy', Joy, self.handle_joy)
-    
+
     if self.FSM == 'ap' or self.FSM == 'ap_prompt':
       self.activate_ap()
     else:
       self.deactivate_ap()
     self.fsm_pub.publish(String(self.FSM))
-    
+
     rospy.loginfo('%s: initialized into %s mode' % (rospy.get_name(), self.FSM))
 
-    
   def activate_ap(self):
     self.reset_ap_cln()
-    self.set_ap_mode_cln(4) # depth-regulated
-    
+    self.set_ap_mode_cln(4)  # depth-regulated
 
   def deactivate_ap(self):
     self.reset_ap_cln()
     self.set_ap_mode_cln(0)
     self.reset_ap_cln()
-    
+
     # Force zero-center on all flippers
     msg = PeriodicLegCommand()
     self.plc_out_pub.publish(msg)
     rospy.sleep(1.0)
-  
-  
+
   def handle_ap_plc(self, msg):
     if self.FSM == 'ap' or self.FSM == 'ap_prompt':
       self.plc_out_pub.publish(msg)
