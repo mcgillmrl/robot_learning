@@ -1,11 +1,11 @@
-output_directory: /tmp/robot_learning/
+output_directory: /data/robot_learning/
 
 default_task_params: &default_task_params
-  initial_random_trials: 1
+  initial_random_trials: 4
   horizon_secs: 20.0
   discount: 1.0
   angle_dims: &default_angle_dims [0, 1, 2]
-  random_walk: True
+  random_walk: False
   wrap_angles: True
   return_best: False
   n_samples: 100
@@ -14,12 +14,14 @@ default_policy_params: &default_policy_params
   input_dims: 7  # TODO, this should be inferred from data
   angle_dims: *default_angle_dims
   maxU: !numpy "[np.sqrt(np.pi/3), np.sqrt(np.pi/3),
-                 np.pi/4, np.pi/4]"
+                 np.sqrt(np.pi/3), np.sqrt(np.pi/3),
+                 np.sqrt(np.pi/3), np.sqrt(np.pi/3),
+                 np.pi/4, np.pi/4, np.pi/4, np.pi/4, np.pi/4, np.pi/4]"
   sat: !!python/name:kusanagi.ghost.control.saturation.tanhSat
 
 default_bnn_params: &default_bnn_params
   # TODO, these dimensions should be inferred from data
-  idims: 14 # non_angle_state_dims + 2*angle_state_dims + controls
+  idims: 22 # non_angle_state_dims + 2*angle_state_dims + controls
   odims: 7 # state_dims
 
 default_network_spec: &default_network_spec
@@ -44,7 +46,7 @@ default_loss_graph: &default_loss_graph !!python/object/apply:functools.partial
   args: [*func_]
   kwds:  
     loss_func: !!python/name:kusanagi.shell.cost.quadratic_saturating_loss
-    cw: 0.1
+    cw: 1.0
     expl: 0.0
 
 default_loss_fn: &default_loss_fn !!python/object/apply:kusanagi.shell.cost.build_loss_func
@@ -80,6 +82,7 @@ tasks:
         <<: *default_policy_params
         network_spec:
           <<: *default_network_spec
+          hidden_dims: !numpy '[100]*4'
     transition_model: !!python/object/apply:kusanagi.ghost.regression.BNN
       kwds:
         <<: *default_bnn_params
@@ -94,7 +97,7 @@ tasks:
     optimizer: !!python/object/apply:kusanagi.ghost.optimizers.SGDOptimizer
         kwds:
           min_method: 'ADAM'
-          max_evals: 1000
+          max_evals: 500
     polopt:
       learning_rate: 1e-3
       build_loss_kwargs:
