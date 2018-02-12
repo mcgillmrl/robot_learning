@@ -90,12 +90,15 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
                                 and len(v.get_parents()) == 0])
             task_spec['extra_in'] = ex_in
             loss, inps, updts = mc_pilco.get_loss(
-                pol, dyn, immediate_cost, n_samples=n_samples, lr=1e-3,
-                noisy_cost_input=False, noisy_policy_input=True,
+                pol, dyn, immediate_cost,
+                n_samples=n_samples,
+                noisy_cost_input=False, 
+                noisy_policy_input=True, 
+                split_H=1,
                  **ex_in)
             inps += ex_in.values()
             optimizer.set_objective(
-                loss, pol.get_params(symbolic=True), inps, updts, clip=1.0)
+                loss, pol.get_params(symbolic=True), inps, updts, clip=1.0, learning_rate=1e-3)
 
         # train policy # TODO block if learning a multitask policy
         task_state[task_name] = 'update_polopt'
@@ -118,7 +121,11 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
         optimizer.minimize(*polopt_args,
                         return_best=task_spec['return_best'])
         task_state[task_name] = 'ready'
-
+    
+    # check if task is done
+    n_polopt_iters = len([p for p in exp.policy_parameters if len(p) > 0])
+    if n_polopt_iters >= task_spec['n_opt']:
+        task_state[task_name] = 'done'
     # put task in the queue for execution
     task_queue.put((task_name, task_spec))
 
@@ -197,9 +204,13 @@ if __name__ == '__main__':
             except Empty:
                 pass
 
+        # if task is done, pass
         state = task_state[name]
         exp = spec.get('experience')
-        rospy.loginfo('Executing %s task [iteration %d]' % (name, exp.n_episodes()))
+        if state == 'done':
+            rospy.loginfo('Finished %s task [iteration %d]' % (name, exp.n_episodes()))
+            continue
+        rospy.loginfo('==== Executing %s task [iteration %d] ====' % (name, exp.n_episodes()))
 
         # set plant parameters for current task
         plant_params = spec['plant']
@@ -230,7 +241,7 @@ if __name__ == '__main__':
             preprocess = partial(
                 preprocess_angles, angle_dims=pol.angle_dims)
         experience = apply_controller(env, pol, H, preprocess)
-
+        # print experience[0]
         # append new experience to dataset
         states, actions, costs, infos = experience
         ts = [info.get('t', None) for info in infos]
