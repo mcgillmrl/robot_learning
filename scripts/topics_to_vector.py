@@ -7,6 +7,7 @@
 '''
 import sys
 import time
+import traceback
 from collections import OrderedDict, Iterable
 from numbers import Number
 
@@ -148,7 +149,8 @@ class SubscriptionManager:
         # setup the preprocessing operations
         self.operations = rospy.get_param("~preprocessing_operations",{})
         self.preprocess = {'square':  lambda x: x**2,
-                           'abs':  math.fabs}
+                           'abs':  math.fabs,
+                           'absolute':  math.fabs}
         for fname in math.__dict__:
             f = math.__dict__[fname]
             if callable(f):
@@ -198,15 +200,25 @@ class SubscriptionManager:
         # OrderedDict. This behaviour could be broken in any subsequent ROS
         # releases
         vector_data = []
-        for msg,topic_name in zip(args,subscribers.keys()):
-            # get the list of fields we want to get from corresponding to the
-            # current topic
-            filtered_fields = self.filtered_fields[topic_name]
-            for field in filtered_fields:
-                field_value = recursive_getattr(msg, field)
-                if hasattr(field_value,'_type'):
-                    # ignore the header type
-                    if field_value._type != 'std_msgs/Header':
+        for msg, topic_name in zip(args, subscribers.keys()):
+            try:
+                # get the list of fields we want to get from corresponding to the
+                # current topic
+                filtered_fields = self.filtered_fields[topic_name]
+                for field in filtered_fields:
+                    field_value = recursive_getattr(msg, field)
+                    if hasattr(field_value,'_type'):
+                        # ignore the header type
+                        if field_value._type != 'std_msgs/Header':
+                            numeric_fields = get_all_numeric_fields(field_value)
+                            if preprocess_enabled == True:
+                                for i in xrange(len(numeric_fields)):
+                                    operations = self.operations.get(field,[])
+                                    for op in operations:
+                                        numeric_fields[i] = self.preprocess[op](
+                                            numeric_fields[i])
+                            vector_data.extend(numeric_fields)
+                    else:
                         numeric_fields = get_all_numeric_fields(field_value)
                         if preprocess_enabled == True:
                             for i in xrange(len(numeric_fields)):
@@ -215,15 +227,12 @@ class SubscriptionManager:
                                     numeric_fields[i] = self.preprocess[op](
                                         numeric_fields[i])
                         vector_data.extend(numeric_fields)
-                else:
-                    numeric_fields = get_all_numeric_fields(field_value)
-                    if preprocess_enabled == True:
-                        for i in xrange(len(numeric_fields)):
-                            operations = self.operations.get(field,[])
-                            for op in operations:
-                                numeric_fields[i] = self.preprocess[op](
-                                    numeric_fields[i])
-                    vector_data.extend(numeric_fields)
+            except:
+                print topic_name
+                print '------------'
+                print msg
+                print '============'
+                traceback.print_exc()
         return vector_data
 
     def stateCallback(self,*args):
