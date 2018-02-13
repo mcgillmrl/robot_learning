@@ -1,7 +1,7 @@
 output_directory: /tmp/robot_learning/
 
 default_task_params: &default_task_params
-  initial_random_trials: 1
+  initial_random_trials: 2
   n_opt: 50
   horizon_secs: 20.0
   discount: 1.0
@@ -15,12 +15,14 @@ default_policy_params: &default_policy_params
   input_dims: 7  # TODO, this should be inferred from data
   angle_dims: *default_angle_dims
   maxU: !numpy "[np.sqrt(np.pi/3), np.sqrt(np.pi/3),
-                 np.pi/4, np.pi/4]"
+                 np.sqrt(np.pi/3), np.sqrt(np.pi/3),
+                 np.sqrt(np.pi/3), np.sqrt(np.pi/3),
+                 np.pi/4, np.pi/4, np.pi/4, np.pi/4, np.pi/4, np.pi/4]"
   sat: !!python/name:kusanagi.ghost.control.saturation.tanhSat
 
 default_bnn_params: &default_bnn_params
   # TODO, these dimensions should be inferred from data
-  idims: 14 # non_angle_state_dims + 2*angle_state_dims + controls
+  idims: 22 # non_angle_state_dims + 2*angle_state_dims + controls
   odims: 7 # state_dims
 
 default_network_spec: &default_network_spec
@@ -60,7 +62,7 @@ default_Q:
   roll: &rollrate_Q !numpy np.diag([1.0, 1.0, 0, 0, 0, 0, 1.0, 1.0, 1.0, 1.0]) # Use this for fixed roll-rate tasks 
 
 tasks:
-  corkscrew:
+  corkscrew6:
     <<: *default_task_params
     cost:
       params: &cs_cost_params

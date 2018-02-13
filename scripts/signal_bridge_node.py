@@ -23,8 +23,10 @@ class SignalBridgeNode(object):
 
     def ros_init(self):
         # create services
+        rospy.loginfo('%s: starting reset robot service' % self.name)
         self.reset_robot_srv = rospy.Service(
           '/rl/reset_robot', EmptySrv, self.reset_robot)
+        rospy.loginfo('%s: starting reset stop service' % self.name)
         self.stop_robot_srv = rospy.Service(
           '/rl/stop_robot', EmptySrv, self.stop_robot)
 
@@ -83,6 +85,7 @@ class GazeboSignalBridgeNode(SignalBridgeNode):
 
     def stop_robot(self, req):
         try:
+            rospy.sleep(2.0)
             self.pause()
         except rospy.ServiceException, e:
             rospy.logerr(
@@ -129,12 +132,15 @@ if __name__ == "__main__":
             name = rospy.get_name()
             rospy.loginfo(
                 '%s: auto-setting is_sim via /gazebo/reset_world...' % name)
-            rospy.wait_for_service('/gazebo/reset_world', timeout=5.0)
+            rospy.wait_for_service('/gazebo/reset_world', timeout=10.0)
         except ROSException:
             is_sim = False
+
     if is_sim:
+        rospy.loginfo("Initialiazing Gazebo signal bridge")
         node = GazeboSignalBridgeNode()
     else:
+        rospy.loginfo("Initialiazing marshall signal bridge")
         node = MarshallSignalBridgeNode()
 
     rospy.loginfo('%s: is_sim <- %d' % (node.name, is_sim))
