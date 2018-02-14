@@ -12,6 +12,8 @@ import rospy
 import threading
 import multiprocessing
 import yaml
+import requests
+import pickle
 
 from collections import OrderedDict
 from functools import partial
@@ -134,6 +136,46 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
 
     return
 
+def http_polopt(task_name, task_spec, task_queue):
+    # build post request
+    # send post request and wait for results
+    # put task in queue
+    url = "http://mc_pilco_server:8008/check/%s" % task_name
+    # check if task id exists in server
+    r = requests.get(url)
+    if r.text == "NOT FOUND" or True:
+        tspec_path = os.path.join(utils.get_output_dir(), "task_spec.pkl")
+        try:
+            rospy.loginfo(task_spec)
+            with open(tspec_path, "wb") as f_tspec:
+                pickle.dump(task_spec, f_tspec, 2)
+            with open(tspec_path, "rb") as f_tspec:
+                url = "http://mc_pilco_server:8008/init/%s" % task_name
+                r = requests.post(url, files = [('tspec_file', f_tspec)] )
+        except Exception as e:
+            rospy.loginfo('Pickling failed: ' + str(e))
+
+
+
+
+    # get task specific variables
+    n_samples = task_spec['n_samples']
+    dyn = task_spec['transition_model']
+    exp = task_spec['experience']
+    pol = task_spec['policy']
+    plant_params = task_spec['plant']
+    immediate_cost = task_spec['cost']['graph']
+
+    dyn.save(None, "dynamics")
+    exp.save(None, "experience")
+    pol.save(None, "policy")
+
+    dyn_path = os.path.join(utils.get_output_dir(), "dynamics.zip")
+    exp_path = os.path.join(utils.get_output_dir(), "experience.zip")
+    pol_path = os.path.join(utils.get_output_dir(), "policy.zip")
+
+    with open(dyn_path, 'rb') as f_dyn, open(exp_path, 'rb') as f_exp, open(pol_path, 'rb') as f_pol:
+        r = requests.post(url, files = [('dyn_file', f_dyn), ('exp_file', f_exp), ('pol_file', f_pol)] )
 
 if __name__ == '__main__':
     np.set_printoptions(linewidth=200,precision=3)
@@ -248,11 +290,11 @@ if __name__ == '__main__':
         # append new experience to dataset
         states, actions, costs, infos = experience
         ts = [info.get('t', None) for info in infos]
-        pol_params = (pol.get_params(symbolic=False) 
+        pol_params = (pol.get_params(symbolic=False)
                       if hasattr(pol, 'params') else [])
         exp.append_episode(states, actions, costs, infos,
                         pol_params, ts)
-        
+
         exp.save()
         spec['experience'] = exp
 
@@ -261,4 +303,5 @@ if __name__ == '__main__':
         #                                args=(name, spec, tasks))
         #polopt_threads.append(new_thread)
         #new_thread.start()
-        polopt_fn(name, spec, tasks)
+        #polopt_fn(name, spec, tasks)
+        http_polopt(name, spec, tasks)
