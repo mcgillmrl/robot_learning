@@ -3,13 +3,13 @@ output_directory: /tmp/robot_learning/
 default_task_params: &default_task_params
   initial_random_trials: 4
   n_opt: 50
-  horizon_secs: 15.0
+  horizon_secs: 20.0
   discount: 1.0
   angle_dims: &default_angle_dims [0, 1, 2]
   random_walk: True
   wrap_angles: True
   return_best: False
-  n_samples: 125
+  n_samples: 100
   # options for truncated backpropagation through time
   # split the horizon in split_H segments and, for each segment, remove
   # truncate_gradient time steps from the beginning of the sequence

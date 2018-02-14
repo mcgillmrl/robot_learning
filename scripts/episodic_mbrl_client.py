@@ -155,9 +155,6 @@ def http_polopt(task_name, task_spec, task_queue):
         except Exception as e:
             rospy.loginfo('Pickling failed: ' + str(e))
 
-
-
-
     # get task specific variables
     n_samples = task_spec['n_samples']
     dyn = task_spec['transition_model']
@@ -299,9 +296,9 @@ if __name__ == '__main__':
         spec['experience'] = exp
 
         # launch learning in a separate thread
-        #new_thread = threading.Thread(name=name, target=polopt_fn,
-        #                                args=(name, spec, tasks))
-        #polopt_threads.append(new_thread)
-        #new_thread.start()
-        #polopt_fn(name, spec, tasks)
-        http_polopt(name, spec, tasks)
+        new_thread = threading.Thread(name=name, target=polopt_fn,
+                                       args=(name, spec, tasks))
+        polopt_threads.append(new_thread)
+        new_thread.start()
+        polopt_fn(name, spec, tasks)
+        #http_polopt(name, spec, tasks)
