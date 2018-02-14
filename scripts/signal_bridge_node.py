@@ -85,6 +85,7 @@ class GazeboSignalBridgeNode(SignalBridgeNode):
 
     def stop_robot(self, req):
         try:
+            rospy.sleep(2.0)
             self.pause()
         except rospy.ServiceException, e:
             rospy.logerr(
