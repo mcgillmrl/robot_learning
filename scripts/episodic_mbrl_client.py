@@ -73,6 +73,7 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
     pol = task_spec['policy']
     plant_params = task_spec['plant']
     immediate_cost = task_spec['cost']['graph']
+    H = int(np.ceil(task_spec['horizon_secs']/plant_params['dt']))
 
     if state != 'init':
         # train dynamics model. TODO block if training multiple tasks with
@@ -84,6 +85,8 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
         optimizer = task_spec['optimizer']
         if optimizer.loss_fn is None:
             task_state[task_name] = 'compile_polopt'
+            split_H = task_spec.get('split_H', 1)
+            truncate_gradient = task_spec.get('truncate_gradient', -1)
             import theano.tensor as tt
             ex_in = OrderedDict([(k, v) for k, v in immediate_cost.keywords.items()
                                 if type(v) is tt.TensorVariable
@@ -93,8 +96,9 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
                 pol, dyn, immediate_cost,
                 n_samples=n_samples,
                 noisy_cost_input=False, 
-                noisy_policy_input=True, 
-                split_H=1,
+                noisy_policy_input=False,
+                split_H=split_H,
+                truncate_gradient=(H/split_H)-truncate_gradient,
                  **ex_in)
             inps += ex_in.values()
             optimizer.set_objective(
@@ -104,7 +108,6 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
         task_state[task_name] = 'update_polopt'
         # build inputs to optimizer
         p0 = plant_params['state0_dist']
-        H = int(np.ceil(task_spec['horizon_secs']/plant_params['dt']))
         gamma = task_spec['discount']
         polopt_args = [p0.mean, p0.cov, H, gamma]
         extra_in = task_spec.get('extra_in', OrderedDict)
@@ -240,7 +243,7 @@ if __name__ == '__main__':
         if hasattr(pol, 'angle_dims'):
             preprocess = partial(
                 preprocess_angles, angle_dims=pol.angle_dims)
-        experience = apply_controller(env, pol, H, preprocess)
+        experience = apply_controller(env, pol, 2*H, preprocess)
         # print experience[0]
         # append new experience to dataset
         states, actions, costs, infos = experience

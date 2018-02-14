@@ -66,7 +66,7 @@ class GazeboSignalBridgeNode(SignalBridgeNode):
         self.pause = rospy.ServiceProxy('/gazebo/pause_physics', EmptySrv)
 
         rospy.loginfo(
-            '%s: waiting for /gazebo/pause_physics...' % self.name)
+            '%s: waiting for /gazebo/unpause_physics...' % self.name)
         rospy.wait_for_service('/gazebo/unpause_physics')
         self.unpause = rospy.ServiceProxy(
             '/gazebo/unpause_physics', EmptySrv)
@@ -85,7 +85,7 @@ class GazeboSignalBridgeNode(SignalBridgeNode):
 
     def stop_robot(self, req):
         try:
-            rospy.sleep(2.0)
+            rospy.sleep(4.0)
             self.pause()
         except rospy.ServiceException, e:
             rospy.logerr(
