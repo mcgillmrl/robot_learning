@@ -10,6 +10,14 @@ default_task_params: &default_task_params
   wrap_angles: True
   return_best: False
   n_samples: 100
+  noisy_policy_input: True
+  learning_rate: !numpy 1e-3
+  # options for truncated backpropagation through time
+  # split the horizon in split_H segments and, for each segment, remove
+  # truncate_gradient time steps from the beginning of the sequence
+  # (during the backwards pass)
+  split_H: 2
+  truncate_gradient: 2
 
 default_policy_params: &default_policy_params
   input_dims: 7  # TODO, this should be inferred from data
@@ -25,7 +33,7 @@ default_bnn_params: &default_bnn_params
 
 default_network_spec: &default_network_spec
   hidden_dims: !numpy '[200]*3'
-  p: 0.5
+  p: 0.25
   p_input: 0.0
   nonlinearities: !!python/name:kusanagi.ghost.regression.nonlinearities.rectify
   W_init: !!python/object/apply:lasagne.init.GlorotNormal {}

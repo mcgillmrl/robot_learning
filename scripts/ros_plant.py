@@ -194,4 +194,4 @@ class ROSPlant(gym.Env):
         '''
             calls the registered reset service with the desired state.
         '''
-        print self.stop_srv()
+        self.stop_srv()
