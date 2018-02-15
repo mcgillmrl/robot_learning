@@ -3,7 +3,7 @@
 
   <!-- bridge observations and actions streams for RL with ROS topics-->
   <include file="$(find robot_learning)/launch/topics2vec.launch">
-    <arg name="topic_description" value="aqua/6flipper_topics.yml"/>
+    <arg name="topic_description" value="aqua/back2flipper_topics.yml"/>
     <arg name="experience_rate" value="500"/>
     <arg name="slop" value="0.05"/>
   </include>
