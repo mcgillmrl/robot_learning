@@ -10,6 +10,14 @@ default_task_params: &default_task_params
   wrap_angles: True
   return_best: False
   n_samples: 100
+  noisy_policy_input: True
+  learning_rate: !numpy 1e-3
+  # options for truncated backpropagation through time
+  # split the horizon in split_H segments and, for each segment, remove
+  # truncate_gradient time steps from the beginning of the sequence
+  # (during the backwards pass)
+  split_H: 2
+  truncate_gradient: 2
 
 default_policy_params: &default_policy_params
   input_dims: 7  # TODO, this should be inferred from data
@@ -24,8 +32,8 @@ default_bnn_params: &default_bnn_params
   odims: 7 # state_dims
 
 default_network_spec: &default_network_spec
-  hidden_dims: !numpy '[100]*4'
-  p: 0.1
+  hidden_dims: !numpy '[200]*3'
+  p: 0.25
   p_input: 0.0
   nonlinearities: !!python/name:kusanagi.ghost.regression.nonlinearities.rectify
   W_init: !!python/object/apply:lasagne.init.GlorotNormal {}
@@ -37,7 +45,7 @@ default_plant: &default_plant_params
     state0_dist: &state0_dist !!python/object/apply:kusanagi.utils.distributions.Gaussian
       kwds: &state0_dist_kwds
         mean: !numpy np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-        cov: !numpy np.eye(7)*(0.1**2)
+        cov: !numpy np.eye(7)*(0.2**2)
     name: 'AquaRobotEnv'
 
 default_loss_graph: &default_loss_graph !!python/object/apply:functools.partial
