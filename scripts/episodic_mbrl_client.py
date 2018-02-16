@@ -80,8 +80,8 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
     if state != 'init':
         # train dynamics model. TODO block if training multiple tasks with
         # the same model
-        train_dynamics(dyn, exp, pol.angle_dims,
-                    wrap_angles=task_spec['wrap_angles'])
+        train_dynamics(
+            dyn, exp, pol.angle_dims, wrap_angles=task_spec['wrap_angles'])
 
         # init policy optimizer if needed
         optimizer = task_spec['optimizer']
@@ -104,7 +104,7 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
                  **ex_in)
             inps += ex_in.values()
             optimizer.set_objective(
-                loss, pol.get_params(symbolic=True), inps, updts, clip=1.0, learning_rate=1e-3)
+                loss, pol.get_params(symbolic=True), inps, updts, clip=1.0, learning_rate=1e-4)
 
         # train policy # TODO block if learning a multitask policy
         task_state[task_name] = 'update_polopt'
@@ -115,6 +115,7 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
         extra_in = task_spec.get('extra_in', OrderedDict)
         if len(extra_in) > 0:
             polopt_args += [task_spec['cost']['params'][k] for k in extra_in]
+
         # update dyn and pol (resampling)
         def callback(*args,**kwargs):
             if hasattr(dyn, 'update'):
@@ -123,10 +124,10 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
                 pol.update(n_samples)
         # call minimize
         callback()
-        optimizer.minimize(*polopt_args,
-                        return_best=task_spec['return_best'])
+        optimizer.minimize(
+            *polopt_args, return_best=task_spec['return_best'])
         task_state[task_name] = 'ready'
-    
+
     # check if task is done
     n_polopt_iters = len([p for p in exp.policy_parameters if len(p) > 0])
     if n_polopt_iters >= task_spec['n_opt']:
@@ -174,8 +175,11 @@ def http_polopt(task_name, task_spec, task_queue):
     with open(dyn_path, 'rb') as f_dyn, open(exp_path, 'rb') as f_exp, open(pol_path, 'rb') as f_pol:
         r = requests.post(url, files = [('dyn_file', f_dyn), ('exp_file', f_exp), ('pol_file', f_pol)] )
 
+
 if __name__ == '__main__':
-    np.set_printoptions(linewidth=200,precision=3)
+    np.set_printoptions(linewidth=200, precision=3)
+    rospy.init_node('kusanagi_ros', disable_signals=True)
+
     parser = argparse.ArgumentParser(
         'rosrun robot_learning task_client.py')
     parser.add_argument(
@@ -189,8 +193,8 @@ if __name__ == '__main__':
         '-t', '--tasks',
         help='Tasks from the configuration file to be executed. Default is all.',
         type=str, nargs='+', default=[])
-    args = parser.parse_args()
-    rospy.init_node('kusanagi_ros', disable_signals=True)
+    # args = parser.parse_args()
+    args = parser.parse_args(rospy.myargv()[1:])
 
     # import yaml
     config = parse_config(args.config_path)
@@ -282,23 +286,23 @@ if __name__ == '__main__':
         if hasattr(pol, 'angle_dims'):
             preprocess = partial(
                 preprocess_angles, angle_dims=pol.angle_dims)
-        experience = apply_controller(env, pol, 2*H, preprocess)
+        experience = apply_controller(env, pol, H, preprocess)
         # print experience[0]
         # append new experience to dataset
         states, actions, costs, infos = experience
         ts = [info.get('t', None) for info in infos]
         pol_params = (pol.get_params(symbolic=False)
                       if hasattr(pol, 'params') else [])
-        exp.append_episode(states, actions, costs, infos,
-                        pol_params, ts)
+        exp.append_episode(
+            states, actions, costs, infos, pol_params, ts)
 
         exp.save()
         spec['experience'] = exp
 
         # launch learning in a separate thread
-        new_thread = threading.Thread(name=name, target=polopt_fn,
-                                       args=(name, spec, tasks))
-        polopt_threads.append(new_thread)
-        new_thread.start()
+        #new_thread = threading.Thread(
+        #    name=name, target=polopt_fn, args=(name, spec, tasks))
+        #polopt_threads.append(new_thread)
+        #new_thread.start()
         polopt_fn(name, spec, tasks)
-        #http_polopt(name, spec, tasks)
+        # http_polopt(name, spec, tasks)

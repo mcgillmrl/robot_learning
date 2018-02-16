@@ -1,0 +1,82 @@
+<launch>
+
+	<arg name="bag.name" default="/data/pool_trial/"/>
+	<arg name="bag.topics"
+	     default=
+	     "
+	/aqua/state
+	/aqua/state_reparameterized
+	/rl/experience_data
+	/rl/command_data
+	/aqua/periodic_leg_command
+	/aqua/target_pose
+	/aqua/command
+	/aqua/health
+	/aqua/autopilot/status
+	/rl/state
+	/rl/new_episode
+	/rl/run_live
+	/rl/step
+	/rl/reward
+	/rl/terminate_episode
+	/rl/critic_state
+	/rl/learner_state
+	/clock
+	/rosout
+	/rosout_agg
+	/tf
+	/tf_static
+
+	/AP_depth_filter/parameter_descriptions
+	/AP_depth_filter/parameter_updates
+	/aqua/autopilot/status
+	/aqua/command
+	/aqua/constant_depth_flag
+	/aqua/filtered_depth
+	/aqua/health
+	/aqua/imu
+	/aqua/keepalive
+	/aqua/periodic_leg_command
+	/aqua/positioning/angular_velocity
+	/aqua/state
+	/aqua/state_reparameterized
+	/aqua/swim_backwards
+	/aqua/target_pose
+	/aqua/traj3Dvis1
+	/aqua/traj3Dvis2
+	/aqua/traj3Dvis3
+	/aqua/traj3Dvis4
+	/aqua/traj3Dvis5
+	/aqua_joy/joy_params
+	/aqua_joy/joy_state
+	/aqua_joy/parameter_descriptions
+	/aqua_joy/parameter_updates
+	/aqua_marshall/mode
+	/rl/command_data
+	/rl/experience_data
+	/rl/new_episode
+	/rl/terminate_episode
+	/rl/trigger_reset
+	/rl/trigger_start
+	/rl/trigger_stop
+	/rl/user_prompt
+	/aqua_state_reparameterizer/state
+	/diagnostics
+	/joint_states
+	/joy
+	/localAP/parameter_descriptions
+	/localAP/parameter_updates
+	/rosout
+	/rosout_agg
+	/sandbox/AP/command
+	/sandbox/AP/keepalive
+	/sandbox/AP/periodic_leg_command
+	/sandbox/RL/periodic_leg_command
+	/tf
+	/tf_static
+
+	     "/>
+	
+  <node pkg="rosbag" type="record" name="external_record" args="--output-prefix=$(arg bag.name) $(arg bag.topics)" />
+
+</launch>
