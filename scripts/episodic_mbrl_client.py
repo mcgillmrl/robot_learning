@@ -69,49 +69,67 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
     executes one iteration of mc_pilco (model updating and policy optimization)
     '''
     # get task specific variables
-    n_samples = task_spec['n_samples']
     dyn = task_spec['transition_model']
     exp = task_spec['experience']
     pol = task_spec['policy']
     plant_params = task_spec['plant']
     immediate_cost = task_spec['cost']['graph']
+    H = int(np.ceil(task_spec['horizon_secs']/plant_params['dt']))
+    n_samples = task_spec.get('n_samples', 100)
 
     if state != 'init':
         # train dynamics model. TODO block if training multiple tasks with
         # the same model
-        train_dynamics(dyn, exp, pol.angle_dims,
-                    wrap_angles=task_spec['wrap_angles'])
+        train_dynamics(
+            dyn, exp, pol.angle_dims, wrap_angles=task_spec['wrap_angles'])
 
         # init policy optimizer if needed
         optimizer = task_spec['optimizer']
         if optimizer.loss_fn is None:
             task_state[task_name] = 'compile_polopt'
+
+            # get policy optimizer options
+            split_H = task_spec.get('split_H', 1)
+            noisy_policy_input = task_spec.get('noisy_policy_input', False)
+            noisy_cost_input = task_spec.get('noisy_cost_input', False)
+            truncate_gradient = task_spec.get('truncate_gradient', -1)
+            learning_rate = task_spec.get('learning_rate', 1e-3)
+            gradient_clip = task_spec.get('gradient_clip', 1.0)
+
+            # get extra inputs, if needed
             import theano.tensor as tt
             ex_in = OrderedDict([(k, v) for k, v in immediate_cost.keywords.items()
                                 if type(v) is tt.TensorVariable
                                 and len(v.get_parents()) == 0])
             task_spec['extra_in'] = ex_in
+
+            # build loss function
             loss, inps, updts = mc_pilco.get_loss(
                 pol, dyn, immediate_cost,
                 n_samples=n_samples,
-                noisy_cost_input=False,
-                noisy_policy_input=True,
-                split_H=1,
+                noisy_cost_input=noisy_cost_input, 
+                noisy_policy_input=noisy_policy_input,
+                split_H=split_H,
+                truncate_gradient=(H/split_H)-truncate_gradient,
+                crn=100,
                  **ex_in)
             inps += ex_in.values()
+
+            # add loss function as objective for optimizer
             optimizer.set_objective(
-                loss, pol.get_params(symbolic=True), inps, updts, clip=1.0, learning_rate=1e-3)
+                loss, pol.get_params(symbolic=True), inps, updts,
+                clip=gradient_clip, learning_rate=learning_rate)
 
         # train policy # TODO block if learning a multitask policy
         task_state[task_name] = 'update_polopt'
         # build inputs to optimizer
         p0 = plant_params['state0_dist']
-        H = int(np.ceil(task_spec['horizon_secs']/plant_params['dt']))
         gamma = task_spec['discount']
         polopt_args = [p0.mean, p0.cov, H, gamma]
         extra_in = task_spec.get('extra_in', OrderedDict)
         if len(extra_in) > 0:
             polopt_args += [task_spec['cost']['params'][k] for k in extra_in]
+
         # update dyn and pol (resampling)
         def callback(*args,**kwargs):
             if hasattr(dyn, 'update'):
@@ -120,8 +138,8 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
                 pol.update(n_samples)
         # call minimize
         callback()
-        optimizer.minimize(*polopt_args,
-                        return_best=task_spec['return_best'])
+        optimizer.minimize(
+            *polopt_args, return_best=task_spec['return_best'])
         task_state[task_name] = 'ready'
 
     # check if task is done
@@ -159,6 +177,9 @@ def http_polopt(task_name, task_spec, task_queue):
     #TODO: Error handling if the task_spec upload fails
     # send latest experience for task_name
     url = "http://mc_pilco_server:8008/optimize/%s" % task_name
+    # get task specific variables
+    n_samples = task_spec['n_samples']
+    dyn = task_spec['transition_model']
     exp = task_spec['experience']
     exp.save(None, "experience")
     exp_path = os.path.join(utils.get_output_dir(), "experience.zip")
@@ -172,8 +193,11 @@ def http_polopt(task_name, task_spec, task_queue):
 
     task_queue.put((task_name, task_spec))
 
+
 if __name__ == '__main__':
-    np.set_printoptions(linewidth=200,precision=3)
+    np.set_printoptions(linewidth=200, precision=3)
+    rospy.init_node('kusanagi_ros', disable_signals=True)
+
     parser = argparse.ArgumentParser(
         'rosrun robot_learning task_client.py')
     parser.add_argument(
@@ -187,8 +211,8 @@ if __name__ == '__main__':
         '-t', '--tasks',
         help='Tasks from the configuration file to be executed. Default is all.',
         type=str, nargs='+', default=[])
-    args = parser.parse_args()
-    rospy.init_node('kusanagi_ros', disable_signals=True)
+    # args = parser.parse_args()
+    args = parser.parse_args(rospy.myargv()[1:])
 
     # import yaml
     config = parse_config(args.config_path)
@@ -287,15 +311,15 @@ if __name__ == '__main__':
         ts = [info.get('t', None) for info in infos]
         pol_params = (pol.get_params(symbolic=False)
                       if hasattr(pol, 'params') else [])
-        exp.append_episode(states, actions, costs, infos,
-                        pol_params, ts)
+        exp.append_episode(
+            states, actions, costs, infos, pol_params, ts)
 
         exp.save()
         spec['experience'] = exp
 
         # launch learning in a separate thread
         #new_thread = threading.Thread(name=name, target=polopt_fn,
-        #                                args=(name, spec, tasks))
+        #                               args=(name, spec, tasks))
         #polopt_threads.append(new_thread)
         #new_thread.start()
         # polopt_fn(name, spec, tasks)

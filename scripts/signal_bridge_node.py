@@ -38,12 +38,6 @@ class SignalBridgeNode(object):
         rospy.loginfo("%s: stopping plant" % self.name)
         return EmptySrvResponse()
 
-    def callback_to_trigger_start(self, msg):
-        self.has_trigger_start = True
-
-    def callback_to_marshall_mode(self, msg):
-        self.marshall_mode = msg.data
-
     def spin(self):
         rospy.spin()
 
@@ -51,6 +45,7 @@ class SignalBridgeNode(object):
 class GazeboSignalBridgeNode(SignalBridgeNode):
     def __init__(self):
         super(GazeboSignalBridgeNode, self).__init__()
+        self.name += '_gazebo'
     
     def ros_init(self):
         # wait for services
@@ -66,7 +61,7 @@ class GazeboSignalBridgeNode(SignalBridgeNode):
         self.pause = rospy.ServiceProxy('/gazebo/pause_physics', EmptySrv)
 
         rospy.loginfo(
-            '%s: waiting for /gazebo/pause_physics...' % self.name)
+            '%s: waiting for /gazebo/unpause_physics...' % self.name)
         rospy.wait_for_service('/gazebo/unpause_physics')
         self.unpause = rospy.ServiceProxy(
             '/gazebo/unpause_physics', EmptySrv)
@@ -85,7 +80,7 @@ class GazeboSignalBridgeNode(SignalBridgeNode):
 
     def stop_robot(self, req):
         try:
-            rospy.sleep(2.0)
+            rospy.sleep(4.0)
             self.pause()
         except rospy.ServiceException, e:
             rospy.logerr(
@@ -98,6 +93,7 @@ class MarshallSignalBridgeNode(SignalBridgeNode):
         self.has_trigger_start = False
         self.marshall_mode = ''
         super(MarshallSignalBridgeNode, self).__init__()
+        self.name += '_marshall'
 
     def ros_init(self):
         rospy.loginfo(
@@ -120,10 +116,28 @@ class MarshallSignalBridgeNode(SignalBridgeNode):
             rospy.sleep(0.01)
         return EmptySrvResponse()
 
+    def reset_robot(self, req):
+        rospy.loginfo("%s: resetting plant" % rospy.get_name())
+        self.has_trigger_start = False
+        self.trigger_reset_pub.publish()  # tell marshall to prompt user
+        msg_ = "%s: in reset_plant, waiting for /rl/trigger_start..."
+        rospy.loginfo(msg_ % rospy.get_name())
+        # wait till received /aqua_rl/trigger_start (from joy/user)
+        while not self.has_trigger_start and not rospy.is_shutdown():
+            rospy.sleep(0.1)
+
+        return EmptySrvResponse()
+
+    def callback_to_trigger_start(self, msg):
+        self.has_trigger_start = True
+
+    def callback_to_marshall_mode(self, msg):
+        self.marshall_mode = msg.data
+
 
 if __name__ == "__main__":
     rospy.init_node('signal_bridge_node')
-    
+
     is_sim = True
     if rospy.has_param('~is_sim'):
         is_sim = rospy.get_param('~is_sim')
@@ -137,10 +151,10 @@ if __name__ == "__main__":
             is_sim = False
 
     if is_sim:
-        rospy.loginfo("Initialiazing Gazebo signal bridge")
+        rospy.loginfo("Initializing Gazebo signal bridge")
         node = GazeboSignalBridgeNode()
     else:
-        rospy.loginfo("Initialiazing marshall signal bridge")
+        rospy.loginfo("Initializing marshall signal bridge")
         node = MarshallSignalBridgeNode()
 
     rospy.loginfo('%s: is_sim <- %d' % (node.name, is_sim))

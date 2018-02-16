@@ -52,7 +52,7 @@ class ROSPlant(gym.Env):
             queue_size=-1)
 
         # get initial state
-        self.reset()
+        self.state = self.wait_for_state(dt=0.1*self.dt)[1]
         rospy.loginfo(
             '[%s] waiting for first experience data msg...' % (self.name))
 
@@ -127,6 +127,7 @@ class ROSPlant(gym.Env):
         t = self.t
         state = []
         cmd = []
+
         while t < t1:
             if self.experience_queue.empty():
                 # sleep for a short time
@@ -181,7 +182,10 @@ class ROSPlant(gym.Env):
             calls the registered reset service with the desired state.
         '''
         self.reset_srv()
+        # init time
+        self.t = rospy.get_time()
         self.t, self.state, cmd = self.wait_for_state(dt=0.1*self.dt)
+
         return self.state
 
     def _close(self):
@@ -194,4 +198,4 @@ class ROSPlant(gym.Env):
         '''
             calls the registered reset service with the desired state.
         '''
-        print self.stop_srv()
+        self.stop_srv()

@@ -1,0 +1,38 @@
+<launch>
+  <arg name="learning_task_parameters" default="aqua/corkscrew.yml"/>
+  <arg name="topic_description" default="aqua/6flipper_topics.yml"/>
+  <arg name="experience_rate" default="500"/>
+  <arg name="slop" default="0.05"/>
+
+  <!-- bridge observations and actions streams for RL with ROS topics-->
+  <node name="topics_to_vector" pkg="robot_learning" type="topics_to_vector.py" output="screen">
+    <remap from="/aqua/periodic_leg_command" to="/sandbox/RL/periodic_leg_command" />
+    <remap from="/aqua/state" to="/aqua/state_reparameterized"/>
+    <!-- remap from="/aqua/state" to="/aqua/state_reparameterized"/-->
+    <rosparam command="load" file="$(find robot_learning)/launch/$(arg topic_description)"/>
+    <!-- this is a parameter for synchronizing  multiple topics (how much to wait for missing messages) -->
+    <param name="slop" value="$(arg slop)"/>
+    <!-- the rate at which we want to publish the state for the rbf policy -->
+    <param name="rate" value="$(arg experience_rate)"/>
+  </node>
+
+  <!-- allows us to set the inital measured angle as the reference "zero" angle-->
+  <node pkg="aqua_gait" type="aqua_state_reparameterizer.py" name="aqua_state_reparameterizer" output="screen">
+    <param name="target_roll_deg" value="0.0" />
+    <param name="target_pitch_deg" value="0.0" />
+    <param name="target_yaw_deg" value="0.0" />
+    <param name="target_depth_m" value="1.0" />
+    <param name="joy_yaw_gain" value="15.0" />
+    <param name="joy_depth_gain" value="0.25" />
+  </node>
+
+  <!--bridge signals for resetting and stopping the robot-->
+  <node pkg="robot_learning" type="signal_bridge_node.py" name="signal_bridge_node" output="screen">
+    <param name="is_sim" value="False"/>
+  </node>
+
+  <node pkg="robot_learning" type="marshalling_node.py" name="rl_marshall" output="screen"/>
+  <!--node pkg="robot_learning" type="task_client_kusanagi.py" output="screen" name="task_client"/-->
+  <include file="$(find robot_learning)/launch/aqua/aqua_logger.launch"/>
+
+</launch>
