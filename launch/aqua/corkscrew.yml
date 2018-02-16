@@ -16,8 +16,9 @@ default_task_params: &default_task_params
   # split the horizon in split_H segments and, for each segment, remove
   # truncate_gradient time steps from the beginning of the sequence
   # (during the backwards pass)
-  split_H: 2
-  truncate_gradient: 2
+  split_H: 3
+  truncate_gradient: 3
+  crn: 500
 
 default_policy_params: &default_policy_params
   input_dims: 7  # TODO, this should be inferred from data
@@ -41,7 +42,7 @@ default_network_spec: &default_network_spec
   build_fn: !!python/name:kusanagi.ghost.regression.dropout_mlp
 
 default_plant: &default_plant_params
-    dt: 1.0
+    dt: 0.75
     state0_dist: &state0_dist !!python/object/apply:kusanagi.utils.distributions.Gaussian
       kwds: &state0_dist_kwds
         mean: !numpy np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
@@ -98,7 +99,6 @@ tasks:
           dropout_class: !!python/name:kusanagi.ghost.regression.layers.DenseLogNormalDropoutLayer
     plant:
       <<: *default_plant_params
-      dt: 1.0
       loss_func: *cs_cost
     optimizer: !!python/object/apply:kusanagi.ghost.optimizers.SGDOptimizer
         kwds:
