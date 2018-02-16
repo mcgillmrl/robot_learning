@@ -94,8 +94,8 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
             loss, inps, updts = mc_pilco.get_loss(
                 pol, dyn, immediate_cost,
                 n_samples=n_samples,
-                noisy_cost_input=False, 
-                noisy_policy_input=True, 
+                noisy_cost_input=False,
+                noisy_policy_input=True,
                 split_H=1,
                  **ex_in)
             inps += ex_in.values()
@@ -123,7 +123,7 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
         optimizer.minimize(*polopt_args,
                         return_best=task_spec['return_best'])
         task_state[task_name] = 'ready'
-    
+
     # check if task is done
     n_polopt_iters = len([p for p in exp.policy_parameters if len(p) > 0])
     if n_polopt_iters >= task_spec['n_opt']:
@@ -134,45 +134,43 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
     return
 
 def http_polopt(task_name, task_spec, task_queue):
-    # build post request
-    # send post request and wait for results
-    # put task in queue
-    url = "http://mc_pilco_server:8008/check/%s" % task_name
+    #TODO: Automate the harcoded url requests and responses
+    url = "http://mc_pilco_server:8008/get_task_init_status/%s" % task_name
+
     # check if task id exists in server
-    r = requests.get(url)
-    if r.text == "NOT FOUND" or True:
+    http_response = requests.get(url)
+    rospy.loginfo(http_response.text)
+
+    # if task_name doesn't exists then update the task_spec for task_name
+    if http_response.text == "get_task_init_status/%s: NOT FOUND" % task_name:
+        url = "http://mc_pilco_server:8008/init_task/%s" % task_name
+
         tspec_path = os.path.join(utils.get_output_dir(), "task_spec.pkl")
         try:
-            rospy.loginfo(task_spec)
-            with open(tspec_path, "wb") as f_tspec:
+            with open(tspec_path, "wb+") as f_tspec:
                 pickle.dump(task_spec, f_tspec, 2)
-            with open(tspec_path, "rb") as f_tspec:
-                url = "http://mc_pilco_server:8008/init/%s" % task_name
-                r = requests.post(url, files = [('tspec_file', f_tspec)] )
+                f_tspec.seek(0)
+                http_response = requests.post(url, files = [('tspec_file', f_tspec)] )
+                rospy.loginfo(http_response.text)
+                #TODO: Error Handling
         except Exception as e:
             rospy.loginfo('Pickling failed: ' + str(e))
 
-
-
-
-    # get task specific variables
-    n_samples = task_spec['n_samples']
-    dyn = task_spec['transition_model']
+    #TODO: Error handling if the task_spec upload fails
+    # send latest experience for task_name
+    url = "http://mc_pilco_server:8008/optimize/%s" % task_name
     exp = task_spec['experience']
-    pol = task_spec['policy']
-    plant_params = task_spec['plant']
-    immediate_cost = task_spec['cost']['graph']
-
-    dyn.save(None, "dynamics")
     exp.save(None, "experience")
-    pol.save(None, "policy")
-
-    dyn_path = os.path.join(utils.get_output_dir(), "dynamics.zip")
     exp_path = os.path.join(utils.get_output_dir(), "experience.zip")
-    pol_path = os.path.join(utils.get_output_dir(), "policy.zip")
 
-    with open(dyn_path, 'rb') as f_dyn, open(exp_path, 'rb') as f_exp, open(pol_path, 'rb') as f_pol:
-        r = requests.post(url, files = [('dyn_file', f_dyn), ('exp_file', f_exp), ('pol_file', f_pol)] )
+    with open(exp_path, 'rb') as f_exp:
+        http_response = requests.post(url, files = [('exp_file', f_exp)] )
+        # rospy.loginfo(http_response.text)
+
+    pol_params = pickle.loads(http_response.text)
+    task_spec['policy'].set_params(pol_params)
+
+    task_queue.put((task_name, task_spec))
 
 if __name__ == '__main__':
     np.set_printoptions(linewidth=200,precision=3)
@@ -300,5 +298,5 @@ if __name__ == '__main__':
         #                                args=(name, spec, tasks))
         #polopt_threads.append(new_thread)
         #new_thread.start()
-        #polopt_fn(name, spec, tasks)
+        # polopt_fn(name, spec, tasks)
         http_polopt(name, spec, tasks)
