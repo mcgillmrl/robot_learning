@@ -162,7 +162,7 @@ def http_polopt(task_name, task_spec, task_queue):
     # if task_name doesn't exists then upload the task_spec for task_name
     if http_response.text == "get_task_init_status/%s: NOT FOUND" % task_name:
         url = "http://mc_pilco_server:8008/init_task/%s" % task_name
-        tspec_pkl = pickle.dumps(task_spec)
+        tspec_pkl = pickle.dumps(task_spec, 2)
         http_response = requests.post(url, files = {'tspec_file': ('task_spec.pkl', tspec_pkl)})
         rospy.loginfo(http_response.text)
         #TODO: Error Handling
@@ -170,8 +170,14 @@ def http_polopt(task_name, task_spec, task_queue):
     #TODO: Error handling if the task_spec upload fails
     # send latest experience for task_name
     url = "http://mc_pilco_server:8008/optimize/%s" % task_name
-    exp_pkl = pickle.dumps(task_spec['experience'])
-    http_response = requests.post(url, files = {'exp_file': ('experiance.pkl', exp_pkl)} )
+    exp_pkl = pickle.dumps(task_spec['experience'], 2)
+    pol_params_pkl = pickle.dumps(task_spec['policy'].get_params(symbolic=False), 2)
+
+    http_response = requests.post(url,
+    files = {
+    'exp_file': ('experiance.pkl', exp_pkl),
+    'pol_params_file': ('policy_params.pkl', pol_params_pkl)
+    })
 
     pol_params = pickle.loads(http_response.text)
     task_spec['policy'].set_params(pol_params)
@@ -196,8 +202,13 @@ if __name__ == '__main__':
         '-t', '--tasks',
         help='Tasks from the configuration file to be executed. Default is all.',
         type=str, nargs='+', default=[])
+    parser.add_argument(
+        '-e', '--load_experience',
+        help="load past experience if available",
+        action="store_true")
     # args = parser.parse_args()
     args = parser.parse_args(rospy.myargv()[1:])
+    load_experience = args.load_experience
 
     # import yaml
     config = parse_config(args.config_path)
@@ -208,13 +219,14 @@ if __name__ == '__main__':
     try:
         os.mkdir(output_directory)
     except:
+        if not load_experience:
         # move the old stuff
-        target_dir = os.path.dirname(output_directory)+'_'+str(os.stat(output_directory).st_ctime)
-        os.rename(output_directory, target_dir)
-        os.mkdir(output_directory)
-        utils.print_with_stamp(
-            'Moved old results from [%s] to [%s]' % (output_directory,
-                                                     target_dir))
+            target_dir = os.path.dirname(output_directory)+'_'+str(os.stat(output_directory).st_ctime)
+            os.rename(output_directory, target_dir)
+            os.mkdir(output_directory)
+            utils.print_with_stamp(
+                'Moved old results from [%s] to [%s]' % (output_directory,
+                                                         target_dir))
 
     utils.print_with_stamp('Results will be saved in [%s]' % (output_directory))
 
@@ -232,14 +244,25 @@ if __name__ == '__main__':
     for task_name in config['tasks']:
         spec = config['tasks'][task_name]
         exp = spec.get('experience', None)
+        pol = spec['policy']
         if exp is None:
             exp = ExperienceDataset(name=task_name)
+            try:
+                exp.load()
+                if len(exp.policy_parameters) > 0:
+                    pol.set_params(exp.policy_parameters[-1])
+            except:
+                pass
         spec['experience'] = exp
-        pol = spec['policy']
         task_state[task_name] = 'init'
         # trigger policy init (for kusanagi only)
         pol.evaluate(np.zeros(pol.D))
-        tasks.put((task_name, spec))
+
+        # Optimize policy on the loaded experience
+        if len(exp.policy_parameters) > 0:
+            http_polopt(task_name, spec, tasks)
+        else:
+            tasks.put((task_name, spec))
 
     # while tasks are not done
     while not all([st == 'done' for st in task_state]):
