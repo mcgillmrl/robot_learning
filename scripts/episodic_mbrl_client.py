@@ -279,7 +279,7 @@ if __name__ == '__main__':
                 new_task_ready = True
             except Empty:
                 pass
-
+        utils.set_logfile("%s.log" % task_id, base_path="/tmp")
         # if task is done, pass
         state = task_state[name]
         exp = spec.get('experience')
