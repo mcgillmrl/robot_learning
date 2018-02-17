@@ -302,7 +302,7 @@ if __name__ == '__main__':
             pol = spec['policy']
             polopt_fn = spec.get('polopt_fn',
                                  config.get('default_polopt_fn',
-                                            mc_pilco_polopt))
+                                            http_polopt))
 
         # set task horizon
         H = int(np.ceil(spec['horizon_secs']/env.dt))
@@ -326,9 +326,9 @@ if __name__ == '__main__':
         spec['experience'] = exp
 
         # launch learning in a separate thread
-        # new_thread = threading.Thread(name=name, target=http_polopt,
-        #                               args=(name, spec, tasks))
-        # polopt_threads.append(new_thread)
-        # new_thread.start()
-        # polopt_fn(name, spec, tasks)
-        http_polopt(name, spec, tasks)
+        new_thread = threading.Thread(name=name, target=polopt_fn,
+                                       args=(name, spec, tasks))
+        polopt_threads.append(new_thread)
+        new_thread.start()
+        #polopt_fn(name, spec, tasks)
+        # http_polopt(name, spec, tasks)

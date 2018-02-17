@@ -65,7 +65,7 @@ class GazeboSignalBridgeNode(SignalBridgeNode):
         rospy.wait_for_service('/gazebo/unpause_physics')
         self.unpause = rospy.ServiceProxy(
             '/gazebo/unpause_physics', EmptySrv)
-
+        self.unpause()
         super(GazeboSignalBridgeNode, self).ros_init()
 
     def reset_robot(self, req):
