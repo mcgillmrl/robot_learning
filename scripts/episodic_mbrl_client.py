@@ -107,7 +107,7 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
             loss, inps, updts = mc_pilco.get_loss(
                 pol, dyn, immediate_cost,
                 n_samples=n_samples,
-                noisy_cost_input=noisy_cost_input, 
+                noisy_cost_input=noisy_cost_input,
                 noisy_policy_input=noisy_policy_input,
                 split_H=split_H,
                 truncate_gradient=(H/split_H)-truncate_gradient,
@@ -159,34 +159,19 @@ def http_polopt(task_name, task_spec, task_queue):
     http_response = requests.get(url)
     rospy.loginfo(http_response.text)
 
-    # if task_name doesn't exists then update the task_spec for task_name
+    # if task_name doesn't exists then upload the task_spec for task_name
     if http_response.text == "get_task_init_status/%s: NOT FOUND" % task_name:
         url = "http://mc_pilco_server:8008/init_task/%s" % task_name
-
-        tspec_path = os.path.join(utils.get_output_dir(), "task_spec.pkl")
-        try:
-            with open(tspec_path, "wb+") as f_tspec:
-                pickle.dump(task_spec, f_tspec, 2)
-                f_tspec.seek(0)
-                http_response = requests.post(url, files = [('tspec_file', f_tspec)] )
-                rospy.loginfo(http_response.text)
-                #TODO: Error Handling
-        except Exception as e:
-            rospy.loginfo('Pickling failed: ' + str(e))
+        tspec_pkl = pickle.dumps(task_spec)
+        http_response = requests.post(url, files = {'tspec_file': ('task_spec.pkl', tspec_pkl)})
+        rospy.loginfo(http_response.text)
+        #TODO: Error Handling
 
     #TODO: Error handling if the task_spec upload fails
     # send latest experience for task_name
     url = "http://mc_pilco_server:8008/optimize/%s" % task_name
-    # get task specific variables
-    n_samples = task_spec['n_samples']
-    dyn = task_spec['transition_model']
-    exp = task_spec['experience']
-    exp.save(None, "experience")
-    exp_path = os.path.join(utils.get_output_dir(), "experience.zip")
-
-    with open(exp_path, 'rb') as f_exp:
-        http_response = requests.post(url, files = [('exp_file', f_exp)] )
-        # rospy.loginfo(http_response.text)
+    exp_pkl = pickle.dumps(task_spec['experience'])
+    http_response = requests.post(url, files = {'exp_file': ('experiance.pkl', exp_pkl)} )
 
     pol_params = pickle.loads(http_response.text)
     task_spec['policy'].set_params(pol_params)
@@ -318,9 +303,9 @@ if __name__ == '__main__':
         spec['experience'] = exp
 
         # launch learning in a separate thread
-        #new_thread = threading.Thread(name=name, target=polopt_fn,
+        # new_thread = threading.Thread(name=name, target=http_polopt,
         #                               args=(name, spec, tasks))
-        #polopt_threads.append(new_thread)
-        #new_thread.start()
+        # polopt_threads.append(new_thread)
+        # new_thread.start()
         # polopt_fn(name, spec, tasks)
         http_polopt(name, spec, tasks)
