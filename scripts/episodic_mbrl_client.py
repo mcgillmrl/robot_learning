@@ -24,6 +24,7 @@ from kusanagi.ghost.algorithms import mc_pilco
 from kusanagi.ghost.control import RandPolicy
 from kusanagi import utils
 
+compile_lock = threading.RLock()
 
 def numpy_code_constructor(loader, node):
     code_string = loader.construct_scalar(node)
@@ -75,11 +76,18 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
     H = int(np.ceil(task_spec['horizon_secs']/plant_params['dt']))
     n_samples = task_spec.get('n_samples', 100)
 
-    if state != 'init':
+    if task_state[task_name] != 'init':
         # train dynamics model. TODO block if training multiple tasks with
         # the same model
-        train_dynamics(
-            dyn, exp, pol.angle_dims, wrap_angles=task_spec['wrap_angles'])
+        if dyn.optimizer.loss_fn is None:
+            with compile_lock:
+                train_dynamics(
+                    dyn, exp, pol.angle_dims,
+                    wrap_angles=task_spec['wrap_angles'])
+        else:
+            train_dynamics(
+                dyn, exp, pol.angle_dims,
+                wrap_angles=task_spec['wrap_angles'])
 
         # init policy optimizer if needed
         optimizer = task_spec['optimizer']
@@ -115,9 +123,10 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
             inps += ex_in.values()
 
             # add loss function as objective for optimizer
-            optimizer.set_objective(
-                loss, pol.get_params(symbolic=True), inps, updts,
-                clip=gradient_clip, learning_rate=learning_rate)
+            with compile_lock:
+                optimizer.set_objective(
+                    loss, pol.get_params(symbolic=True), inps, updts,
+                    clip=gradient_clip, learning_rate=learning_rate)
 
         # train policy # TODO block if learning a multitask policy
         task_state[task_name] = 'update_polopt'
@@ -264,7 +273,10 @@ if __name__ == '__main__':
 
         # Optimize policy on the loaded experience
         if len(exp.policy_parameters) > 0:
-            http_polopt(task_name, spec, tasks)
+            polopt_fn = spec.get('polopt_fn',
+                        config.get('default_polopt_fn',
+                                http_polopt))
+            polopt_fn(task_name, spec, tasks)
         else:
             tasks.put((task_name, spec))
 
@@ -279,37 +291,37 @@ if __name__ == '__main__':
                 new_task_ready = True
             except Empty:
                 pass
-        utils.set_logfile("%s.log" % name, base_path="/tmp")
+        #utils.set_logfile("%s.log" % name, base_path="/tmp")
         # if task is done, pass
-        state = task_state[name]
         exp = spec.get('experience')
-        if state == 'done':
+        if task_state[name] == 'done':
             rospy.loginfo(
                 'Finished %s task [iteration %d]' % (name, exp.n_episodes()))
             continue
-        rospy.loginfo(
-            '==== Executing %s task [iteration %d] ====' % (name,
-                                                            exp.n_episodes()))
+        msg_ = '==== Executing %s task [iteration %d] ====' % (name,
+                                                               exp.n_episodes())
+        rospy.loginfo(msg_)
+        utils.print_with_stamp(msg_)
 
         # set plant parameters for current task
         plant_params = spec['plant']
         env.init_params(**plant_params)
 
         # load policy
-        if state == 'init' and spec['initial_random_trials'] > 0:
+        if task_state[name] == 'init' and spec['initial_random_trials'] > 0:
             # collect random experience
             pol = RandPolicy(maxU=spec['policy'].maxU,
                              random_walk=spec.get('random_walk', False))
-            polopt_fn = mc_pilco_polopt
             spec['initial_random_trials'] -= 1
             if spec['initial_random_trials'] < 1:
-                state = 'ready'
+                task_state[name] = 'ready'
         else:
             # TODO load policy parameters from disk
             pol = spec['policy']
-            polopt_fn = spec.get('polopt_fn',
-                                 config.get('default_polopt_fn',
-                                            http_polopt))
+
+        polopt_fn = spec.get('polopt_fn',
+                             config.get('default_polopt_fn',
+                                        http_polopt))
 
         # set task horizon
         H = int(np.ceil(spec['horizon_secs']/env.dt))
@@ -337,5 +349,5 @@ if __name__ == '__main__':
                                       args=(name, spec, tasks))
         polopt_threads.append(new_thread)
         new_thread.start()
-        # polopt_fn(name, spec, tasks)
+        #polopt_fn(name, spec, tasks)
         # http_polopt(name, spec, tasks)

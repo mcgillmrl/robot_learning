@@ -16,8 +16,8 @@ default_task_params: &default_task_params
   # split the horizon in split_H segments and, for each segment, remove
   # truncate_gradient time steps from the beginning of the sequence
   # (during the backwards pass)
-  split_H: 3
-  truncate_gradient: 3
+  split_H: 4
+  truncate_gradient: 2
   crn: 500
 
 default_policy_params: &default_policy_params
