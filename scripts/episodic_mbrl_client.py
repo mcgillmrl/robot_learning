@@ -5,12 +5,10 @@
     whe new model is available
 '''
 import argparse
-import atexit
 import numpy as np
 import os
 import rospy
 import threading
-import multiprocessing
 import yaml
 import requests
 import pickle
@@ -98,9 +96,10 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
 
             # get extra inputs, if needed
             import theano.tensor as tt
-            ex_in = OrderedDict([(k, v) for k, v in immediate_cost.keywords.items()
-                                if type(v) is tt.TensorVariable
-                                and len(v.get_parents()) == 0])
+            ex_in = OrderedDict(
+                [(k, v) for k, v in immediate_cost.keywords.items()
+                 if type(v) is tt.TensorVariable
+                 and len(v.get_parents()) == 0])
             task_spec['extra_in'] = ex_in
 
             # build loss function
@@ -112,7 +111,7 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
                 split_H=split_H,
                 truncate_gradient=(H/split_H)-truncate_gradient,
                 crn=100,
-                 **ex_in)
+                **ex_in)
             inps += ex_in.values()
 
             # add loss function as objective for optimizer
@@ -131,7 +130,7 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
             polopt_args += [task_spec['cost']['params'][k] for k in extra_in]
 
         # update dyn and pol (resampling)
-        def callback(*args,**kwargs):
+        def callback(*args, **kwargs):
             if hasattr(dyn, 'update'):
                 dyn.update(n_samples)
             if hasattr(pol, 'update'):
@@ -151,8 +150,9 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
 
     return
 
+
 def http_polopt(task_name, task_spec, task_queue):
-    #TODO: Automate the harcoded url requests and responses
+    # TODO: Automate the harcoded url requests and responses
     url = "http://mc_pilco_server:8008/get_task_init_status/%s" % task_name
 
     # check if task id exists in server
@@ -163,21 +163,25 @@ def http_polopt(task_name, task_spec, task_queue):
     if http_response.text == "get_task_init_status/%s: NOT FOUND" % task_name:
         url = "http://mc_pilco_server:8008/init_task/%s" % task_name
         tspec_pkl = pickle.dumps(task_spec, 2)
-        http_response = requests.post(url, files = {'tspec_file': ('task_spec.pkl', tspec_pkl)})
+        http_response = requests.post(
+            url, files={'tspec_file': ('task_spec.pkl', tspec_pkl)})
         rospy.loginfo(http_response.text)
-        #TODO: Error Handling
+        # TODO: Error Handling
 
-    #TODO: Error handling if the task_spec upload fails
+    # TODO: Error handling if the task_spec upload fails
     # send latest experience for task_name
     url = "http://mc_pilco_server:8008/optimize/%s" % task_name
     exp_pkl = pickle.dumps(task_spec['experience'], 2)
-    pol_params_pkl = pickle.dumps(task_spec['policy'].get_params(symbolic=False), 2)
+    pol_params_pkl = pickle.dumps(
+        task_spec['policy'].get_params(symbolic=False), 2)
 
-    http_response = requests.post(url,
-    files = {
-    'exp_file': ('experiance.pkl', exp_pkl),
-    'pol_params_file': ('policy_params.pkl', pol_params_pkl)
-    })
+    http_response = requests.post(
+        url,
+        files={
+            'exp_file': ('experiance.pkl', exp_pkl),
+            'pol_params_file': ('policy_params.pkl', pol_params_pkl)
+        }
+    )
 
     pol_params = pickle.loads(http_response.text)
     task_spec['policy'].set_params(pol_params)
@@ -200,7 +204,7 @@ if __name__ == '__main__':
         action='store_true')
     parser.add_argument(
         '-t', '--tasks',
-        help='Tasks from the configuration file to be executed. Default is all.',
+        help='Tasks to be executed from the config file. Default is all.',
         type=str, nargs='+', default=[])
     parser.add_argument(
         '-e', '--load_experience',
@@ -214,22 +218,22 @@ if __name__ == '__main__':
     config = parse_config(args.config_path)
 
     # init output dir
-    output_directory = config['output_directory']
+    output_directory = config['output _directory']
     utils.set_output_dir(output_directory)
     try:
         os.mkdir(output_directory)
-    except:
+    except Exception as e:
         if not load_experience:
-        # move the old stuff
-            target_dir = os.path.dirname(output_directory)+'_'+str(os.stat(output_directory).st_ctime)
+            # move the old stuff
+            dir_time = str(os.stat(output_directory).st_ctime)
+            target_dir = os.path.dirname(output_directory)+'_'+dir_time
             os.rename(output_directory, target_dir)
             os.mkdir(output_directory)
             utils.print_with_stamp(
                 'Moved old results from [%s] to [%s]' % (output_directory,
                                                          target_dir))
 
-    utils.print_with_stamp('Results will be saved in [%s]' % (output_directory))
-
+    utils.print_with_stamp('Results will be saved in [%s]' % output_directory)
 
     # init environment with first task params
     plant_params = config['tasks'].values()[0]['plant']
@@ -251,7 +255,7 @@ if __name__ == '__main__':
                 exp.load()
                 if len(exp.policy_parameters) > 0:
                     pol.set_params(exp.policy_parameters[-1])
-            except:
+            except Exception as e:
                 pass
         spec['experience'] = exp
         task_state[task_name] = 'init'
@@ -271,7 +275,7 @@ if __name__ == '__main__':
         rospy.loginfo('Waiting for new task')
         while not new_task_ready:
             try:
-                name, spec = tasks.get(timeout=1)
+                name, spec = tasks.get(timeout=5)
                 new_task_ready = True
             except Empty:
                 pass
@@ -280,9 +284,12 @@ if __name__ == '__main__':
         state = task_state[name]
         exp = spec.get('experience')
         if state == 'done':
-            rospy.loginfo('Finished %s task [iteration %d]' % (name, exp.n_episodes()))
+            rospy.loginfo(
+                'Finished %s task [iteration %d]' % (name, exp.n_episodes()))
             continue
-        rospy.loginfo('==== Executing %s task [iteration %d] ====' % (name, exp.n_episodes()))
+        rospy.loginfo(
+            '==== Executing %s task [iteration %d] ====' % (name,
+                                                            exp.n_episodes()))
 
         # set plant parameters for current task
         plant_params = spec['plant']
@@ -327,8 +334,8 @@ if __name__ == '__main__':
 
         # launch learning in a separate thread
         new_thread = threading.Thread(name=name, target=polopt_fn,
-                                       args=(name, spec, tasks))
+                                      args=(name, spec, tasks))
         polopt_threads.append(new_thread)
         new_thread.start()
-        #polopt_fn(name, spec, tasks)
+        # polopt_fn(name, spec, tasks)
         # http_polopt(name, spec, tasks)
