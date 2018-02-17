@@ -218,7 +218,7 @@ if __name__ == '__main__':
     config = parse_config(args.config_path)
 
     # init output dir
-    output_directory = config['output _directory']
+    output_directory = config['output_directory']
     utils.set_output_dir(output_directory)
     try:
         os.mkdir(output_directory)
