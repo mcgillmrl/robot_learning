@@ -96,11 +96,14 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
 
             # get policy optimizer options
             split_H = task_spec.get('split_H', 1)
+            mm_state = task_spec.get('mm_state', True)
+            mm_cost = task_spec.get('mm_cost', True)
             noisy_policy_input = task_spec.get('noisy_policy_input', False)
             noisy_cost_input = task_spec.get('noisy_cost_input', False)
             truncate_gradient = task_spec.get('truncate_gradient', -1)
             learning_rate = task_spec.get('learning_rate', 1e-3)
             gradient_clip = task_spec.get('gradient_clip', 1.0)
+            crn = task_spec.get('crn', 500)
 
             # get extra inputs, if needed
             import theano.tensor as tt
@@ -114,11 +117,13 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
             loss, inps, updts = mc_pilco.get_loss(
                 pol, dyn, immediate_cost,
                 n_samples=n_samples,
+                mm_cost=mm_cost,
+                mm_state=mm_state,
                 noisy_cost_input=noisy_cost_input,
                 noisy_policy_input=noisy_policy_input,
                 split_H=split_H,
                 truncate_gradient=(H/split_H)-truncate_gradient,
-                crn=100,
+                crn=crn,
                 **ex_in)
             inps += ex_in.values()
 
@@ -139,15 +144,20 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
             polopt_args += [task_spec['cost']['params'][k] for k in extra_in]
 
         # update dyn and pol (resampling)
+        task_spec['opt_iters'] = 0
         def callback(*args, **kwargs):
-            if hasattr(dyn, 'update'):
-                dyn.update(n_samples)
-            if hasattr(pol, 'update'):
-                pol.update(n_samples)
+            task_spec['opt_iters'] += 1
+            crn = task_spec.get('crn', 500)
+            if crn > 0  and task_spec['opt_iters'] % crn == 0:
+                if hasattr(dyn, 'update'):
+                    dyn.update(n_samples)
+                if hasattr(pol, 'update'):
+                    pol.update(n_samples)
         # call minimize
         callback()
         optimizer.minimize(
-            *polopt_args, return_best=task_spec['return_best'])
+            *polopt_args, return_best=task_spec['return_best'],
+            callback=callback)
         task_state[task_name] = 'ready'
 
     # check if task is done
@@ -209,13 +219,6 @@ if __name__ == '__main__':
         help='A YAML file containing the configuration for the learning task.',
         type=str)
     parser.add_argument(
-        '-p', '--playback', help='Whether to run learnedpolicies only',
-        action='store_true')
-    parser.add_argument(
-        '-t', '--tasks',
-        help='Tasks to be executed from the config file. Default is all.',
-        type=str, nargs='+', default=[])
-    parser.add_argument(
         '-e', '--load_experience',
         help="load past experience if available",
         action="store_true")
@@ -264,6 +267,8 @@ if __name__ == '__main__':
                 exp.load()
                 if len(exp.policy_parameters) > 0:
                     pol.set_params(exp.policy_parameters[-1])
+                    spec['init_random_trials'] -= len(
+                        [p for p in exp.policy_parameters if len(p) == 0])
             except Exception as e:
                 pass
         spec['experience'] = exp
@@ -275,7 +280,7 @@ if __name__ == '__main__':
         if len(exp.policy_parameters) > 0:
             polopt_fn = spec.get('polopt_fn',
                         config.get('default_polopt_fn',
-                                http_polopt))
+                                mc_pilco_polopt))
             polopt_fn(task_name, spec, tasks)
         else:
             tasks.put((task_name, spec))
@@ -291,7 +296,7 @@ if __name__ == '__main__':
                 new_task_ready = True
             except Empty:
                 pass
-        #utils.set_logfile("%s.log" % name, base_path="/tmp")
+        #utils.set_logfile("%s.log" % name, base_path="/localdata")
         # if task is done, pass
         exp = spec.get('experience')
         if task_state[name] == 'done':
@@ -321,7 +326,7 @@ if __name__ == '__main__':
 
         polopt_fn = spec.get('polopt_fn',
                              config.get('default_polopt_fn',
-                                        http_polopt))
+                                        mc_pilco_polopt))
 
         # set task horizon
         H = int(np.ceil(spec['horizon_secs']/env.dt))
@@ -345,9 +350,9 @@ if __name__ == '__main__':
         spec['experience'] = exp
 
         # launch learning in a separate thread
-        new_thread = threading.Thread(name=name, target=polopt_fn,
-                                      args=(name, spec, tasks))
-        polopt_threads.append(new_thread)
-        new_thread.start()
-        #polopt_fn(name, spec, tasks)
+        #new_thread = threading.Thread(name=name, target=polopt_fn,
+        #                              args=(name, spec, tasks))
+        #polopt_threads.append(new_thread)
+        #new_thread.start()
+        polopt_fn(name, spec, tasks)
         # http_polopt(name, spec, tasks)
