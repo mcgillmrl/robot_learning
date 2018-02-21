@@ -1,12 +1,12 @@
 output_directory: /localdata/robot_learning/
 
 default_task_params: &default_task_params
-  initial_random_trials: 1
+  initial_random_trials: 2
   n_opt: 50
   horizon_secs: 20.0
   discount: 1.0
   angle_dims: &default_angle_dims [0, 1, 2]
-  random_walk: False
+  random_walk: True
   wrap_angles: True
   return_best: False
   n_samples: 100
