@@ -1,4 +1,4 @@
-output_directory: /tmp/robot_learning/
+output_directory: /localdata/robot_learning/
 
 default_task_params: &default_task_params
   initial_random_trials: 5
