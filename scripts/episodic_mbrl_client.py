@@ -7,11 +7,12 @@
 import argparse
 import numpy as np
 import os
-import rospy
-import threading
-import yaml
-import requests
 import pickle
+import rospy
+import requests
+import threading
+import traceback
+import yaml
 
 from collections import OrderedDict
 from functools import partial
@@ -106,6 +107,7 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
             crn = task_spec.get('crn', 500)
 
             # get extra inputs, if needed
+            import theano
             import theano.tensor as tt
             ex_in = OrderedDict(
                 [(k, v) for k, v in immediate_cost.keywords.items()
@@ -114,7 +116,7 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
             task_spec['extra_in'] = ex_in
 
             # build loss function
-            loss, inps, updts = mc_pilco.get_loss(
+            outputs, inps, updts = mc_pilco.get_loss(
                 pol, dyn, immediate_cost,
                 n_samples=n_samples,
                 mm_cost=mm_cost,
@@ -124,11 +126,14 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
                 split_H=split_H,
                 truncate_gradient=(H/split_H)-truncate_gradient,
                 crn=crn,
+                intermediate_outs=True,
                 **ex_in)
+            loss = outputs[0]
             inps += ex_in.values()
 
             # add loss function as objective for optimizer
             with compile_lock:
+                task_spec['rollout_fn'] = theano.function(inps, outputs, updates=updts)
                 optimizer.set_objective(
                     loss, pol.get_params(symbolic=True), inps, updts,
                     clip=gradient_clip, learning_rate=learning_rate)
@@ -158,6 +163,7 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
         optimizer.minimize(
             *polopt_args, return_best=task_spec['return_best'],
             callback=callback)
+        pol.save(output_filename='policy_%s_%d.zip'% (task_name, exp.n_episodes()))
         task_state[task_name] = 'ready'
 
     # check if task is done
@@ -258,25 +264,32 @@ if __name__ == '__main__':
 
     # populate task queue
     for task_name in config['tasks']:
+        task_state[task_name] = 'init'
         spec = config['tasks'][task_name]
         exp = spec.get('experience', None)
         pol = spec['policy']
+        pol.evaluate(np.zeros(pol.D))
+        random_exp_path = spec.get('random_exp_path', None)
         if exp is None:
             exp = ExperienceDataset(name=task_name)
-            try:
-                exp.load()
-                if len(exp.policy_parameters) > 0:
+            if not exp.load() and random_exp_path is not None:
+                base_path, filename = os.path.split(
+                    random_exp_path)
+                fname = exp.filename
+                exp.load(base_path, filename)
+                # restore previous filename
+                exp.filename = fname
+
+            if exp.n_episodes() > 0:
+                if len(exp.policy_parameters[-1]) > 0:
                     pol.set_params(exp.policy_parameters[-1])
-                    spec['init_random_trials'] -= len(exp.policy_parameters)
-            except Exception as e:
-                pass
+                spec['initial_random_trials'] -= exp.n_episodes()
+                task_state[task_name] = 'ready'
         spec['experience'] = exp
-        task_state[task_name] = 'init'
         # trigger policy init (for kusanagi only)
-        pol.evaluate(np.zeros(pol.D))
 
         # Optimize policy on the loaded experience
-        if len(exp.policy_parameters) > 0:
+        if exp.n_episodes() > 0:
             polopt_fn = spec.get('polopt_fn',
                         config.get('default_polopt_fn',
                                 mc_pilco_polopt))
@@ -298,14 +311,16 @@ if __name__ == '__main__':
         #utils.set_logfile("%s.log" % name, base_path="/localdata")
         # if task is done, pass
         exp = spec.get('experience')
+        n_rnd = len([p for p in exp.policy_parameters if len(p) == 0])
         if task_state[name] == 'done':
             rospy.loginfo(
-                'Finished %s task [iteration %d]' % (name, exp.n_episodes()+1))
+                'Finished %s task [iteration %d]' % (
+                    name, exp.n_episodes()+1-n_rnd))
             continue
-        msg_ = '==== Executing %s task [iteration %d] ====' % (name,
-                                                               exp.n_episodes()+1)
+        msg_ = '==== Executing %s task [iteration %d] ====' % (
+            name, exp.n_episodes()+1-n_rnd)
         rospy.loginfo(msg_)
-        utils.print_with_stamp(msg_)
+        #utils.print_with_stamp(msg_)
 
         # set plant parameters for current task
         plant_params = spec['plant']
@@ -341,11 +356,19 @@ if __name__ == '__main__':
         states, actions, costs, infos = experience
         ts = [info.get('t', None) for info in infos]
         pol_params = (pol.get_params(symbolic=False)
-                      if hasattr(pol, 'params') else [])
+                      if hasattr(pol, 'get_params') else [])
+
         exp.append_episode(
             states, actions, costs, infos, pol_params, ts)
 
         exp.save()
+        if task_state[name] == 'init':
+            # save random experience for later
+            fname = exp.filename
+            exp.save(base_path, filename)
+            # restore previous filename
+            exp.filename = fname
+
         spec['experience'] = exp
 
         # launch learning in a separate thread
