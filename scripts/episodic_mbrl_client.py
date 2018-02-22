@@ -132,6 +132,7 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
                 optimizer.set_objective(
                     loss, pol.get_params(symbolic=True), inps, updts,
                     clip=gradient_clip, learning_rate=learning_rate)
+            task_spec['opt_iters'] = 0
 
         # train policy # TODO block if learning a multitask policy
         task_state[task_name] = 'update_polopt'
@@ -144,7 +145,6 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
             polopt_args += [task_spec['cost']['params'][k] for k in extra_in]
 
         # update dyn and pol (resampling)
-        task_spec['opt_iters'] = 0
         def callback(*args, **kwargs):
             task_spec['opt_iters'] += 1
             crn = task_spec.get('crn', 500)
@@ -267,8 +267,7 @@ if __name__ == '__main__':
                 exp.load()
                 if len(exp.policy_parameters) > 0:
                     pol.set_params(exp.policy_parameters[-1])
-                    spec['init_random_trials'] -= len(
-                        [p for p in exp.policy_parameters if len(p) == 0])
+                    spec['init_random_trials'] -= len(exp.policy_parameters)
             except Exception as e:
                 pass
         spec['experience'] = exp
@@ -301,10 +300,10 @@ if __name__ == '__main__':
         exp = spec.get('experience')
         if task_state[name] == 'done':
             rospy.loginfo(
-                'Finished %s task [iteration %d]' % (name, exp.n_episodes()))
+                'Finished %s task [iteration %d]' % (name, exp.n_episodes()+1))
             continue
         msg_ = '==== Executing %s task [iteration %d] ====' % (name,
-                                                               exp.n_episodes())
+                                                               exp.n_episodes()+1)
         rospy.loginfo(msg_)
         utils.print_with_stamp(msg_)
 
