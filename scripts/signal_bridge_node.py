@@ -72,6 +72,7 @@ class GazeboSignalBridgeNode(SignalBridgeNode):
         try:
             self.reset_gz_world()
             self.unpause()
+            rospy.sleep(0.5)
         except rospy.ServiceException, e:
             rospy.logerr(
                 "%s: service call(s) failed in reset_robot: %s" % (self.name,
@@ -125,7 +126,7 @@ class MarshallSignalBridgeNode(SignalBridgeNode):
         # wait till received /aqua_rl/trigger_start (from joy/user)
         while not self.has_trigger_start and not rospy.is_shutdown():
             rospy.sleep(0.1)
-
+        rospy.sleep(0.1)
         return EmptySrvResponse()
 
     def callback_to_trigger_start(self, msg):
