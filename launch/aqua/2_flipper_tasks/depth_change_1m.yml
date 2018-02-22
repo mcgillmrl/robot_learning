@@ -1,7 +1,7 @@
-output_directory: /localdata/robot_learning/
+output_directory: /localdata/depth_change_1m_2/
 
 default_task_params: &default_task_params
-  initial_random_trials: 2
+  initial_random_trials: 1
   n_opt: 50
   horizon_secs: 20.0
   discount: 1.0
@@ -10,7 +10,6 @@ default_task_params: &default_task_params
   wrap_angles: True
   return_best: False
   n_samples: 100
-  noisy_policy_input: True
   learning_rate: !numpy 1e-3
   # options for truncated backpropagation through time
   # split the horizon in split_H segments and, for each segment, remove
@@ -19,11 +18,14 @@ default_task_params: &default_task_params
   split_H: 1
   truncate_gradient: 0
   crn: 200
+  mm_cost: True
+  mm_state: True
+  noisy_policy_input: False
 
 default_policy_params: &default_policy_params
   input_dims: 7  # TODO, this should be inferred from data
   angle_dims: *default_angle_dims
-  maxU: !numpy "[np.sqrt(np.pi/4)]*2 + [np.pi/2]*2"
+  maxU: !numpy "[np.sqrt(np.pi/4)]*2 + [np.pi/3]*2"
   sat: !!python/name:kusanagi.ghost.control.saturation.tanhSat
 
 default_bnn_params: &default_bnn_params
@@ -42,7 +44,7 @@ default_network_spec: &default_network_spec
   build_fn: !!python/name:kusanagi.ghost.regression.dropout_mlp
 
 default_plant: &default_plant_params
-    dt: 0.5
+    dt: 1.0
     state0_dist: &state0_dist !!python/object/apply:kusanagi.utils.distributions.Gaussian
       kwds: &state0_dist_kwds
         mean: !numpy np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
@@ -54,7 +56,7 @@ default_loss_graph: &default_loss_graph !!python/object/apply:functools.partial
   args: [*func_]
   kwds:  
     loss_func: !!python/name:kusanagi.shell.cost.quadratic_saturating_loss
-    cw: 0.25
+    cw: 0.15
     expl: 0.0
 
 default_loss_fn: &default_loss_fn !!python/object/apply:kusanagi.shell.cost.build_loss_func
@@ -102,4 +104,4 @@ tasks:
     optimizer: !!python/object/apply:kusanagi.ghost.optimizers.SGDOptimizer
         kwds:
           min_method: 'ADAM'
-          max_evals: 400
+          max_evals: 500

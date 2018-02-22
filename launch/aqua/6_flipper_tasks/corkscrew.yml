@@ -25,12 +25,12 @@ default_task_params: &default_task_params
 default_policy_params: &default_policy_params
   input_dims: 7  # TODO, this should be inferred from data
   angle_dims: *default_angle_dims
-  maxU: !numpy "[np.sqrt(np.pi/4)]*2 + [np.pi/2]*2"
+  maxU: !numpy "[np.sqrt(np.pi/4)]*6 + [np.pi/3]*6"
   sat: !!python/name:kusanagi.ghost.control.saturation.tanhSat
 
 default_bnn_params: &default_bnn_params
   # TODO, these dimensions should be inferred from data
-  idims: 14 # non_angle_state_dims + 2*angle_state_dims + controls
+  idims: 22 # non_angle_state_dims + 2*angle_state_dims + controls
   odims: 7 # state_dims
   max_evals: 2000 # max evals for optimizer (.train() method)
 
