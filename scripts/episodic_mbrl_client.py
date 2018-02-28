@@ -5,6 +5,7 @@
     whe new model is available
 '''
 import argparse
+import dill
 import numpy as np
 import os
 import pickle
@@ -239,7 +240,7 @@ if __name__ == '__main__':
     output_directory = config['output_directory']
     utils.set_output_dir(output_directory)
     try:
-        os.mkdir(output_directory)
+        os.makedirs(output_directory)
     except Exception as e:
         if not load_experience:
             # move the old stuff
@@ -283,6 +284,7 @@ if __name__ == '__main__':
             if exp.n_episodes() > 0:
                 if len(exp.policy_parameters[-1]) > 0:
                     pol.set_params(exp.policy_parameters[-1])
+                # exp.truncate(spec['initial_random_trials'])
                 spec['initial_random_trials'] -= exp.n_episodes()
                 task_state[task_name] = 'ready'
         spec['experience'] = exp
@@ -296,6 +298,10 @@ if __name__ == '__main__':
             polopt_fn(task_name, spec, tasks)
         else:
             tasks.put((task_name, spec))
+        with open(
+            os.path.join(
+                output_directory, '%s_spec.dill') % (task_name), 'wb') as f:
+            dill.dump(spec, f)
 
     # while tasks are not done
     while not all([st == 'done' for st in task_state]):
@@ -312,11 +318,7 @@ if __name__ == '__main__':
         # if task is done, pass
         exp = spec.get('experience')
         n_rnd = len([p for p in exp.policy_parameters if len(p) == 0])
-        if task_state[name] == 'done':
-            rospy.loginfo(
-                'Finished %s task [iteration %d]' % (
-                    name, exp.n_episodes()+1-n_rnd))
-            continue
+
         msg_ = '==== Executing %s task [iteration %d] ====' % (
             name, exp.n_episodes()+1-n_rnd)
         rospy.loginfo(msg_)
@@ -368,6 +370,12 @@ if __name__ == '__main__':
             exp.save(base_path, filename)
             # restore previous filename
             exp.filename = fname
+
+        if task_state[name] == 'done':
+            rospy.loginfo(
+                'Finished %s task [iteration %d]' % (
+                    name, exp.n_episodes()+1-n_rnd))
+            break # TODO don't break when running multiple tasks
 
         spec['experience'] = exp
 
