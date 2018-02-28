@@ -21,13 +21,13 @@ experience_state_topics: [
 experience_command_topics: [
     { topic_name: /aqua/periodic_leg_command,
       type: {package: aquacore, name: PeriodicLegCommand},
-      filter: ["amplitudes","leg_offsets"],
+      filter: ["amplitudes","leg_offsets", "phase_offsets"],
       default_values: { frequencies: 2.5 } }
 ]
 preprocessing_operations: {
     RollAngle: ['radians'],
     PitchAngle: ['radians'],
     YawAngle: ['radians'],
-    'amplitudes': ['square'],
+    'amplitudes': ['square']
 }
 
