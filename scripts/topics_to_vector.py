@@ -283,10 +283,13 @@ class PublisherManager:
 
         # setup the preprocessing operations
         self.operations = rospy.get_param("~preprocessing_operations",{})
-        self.preprocess = {'deg2rad': lambda x: math.pi*x/180.0,
-                           'rad2deg':  lambda x: 180.0*x/math.pi,
-                           'square':  lambda x: x**2,
-                           'abs':  lambda x: math.fabs(x)}
+        self.preprocess = {'square':  lambda x: x**2,
+                           'abs':  math.fabs,
+                           'absolute':  math.fabs}
+        for fname in math.__dict__:
+            f = math.__dict__[fname]
+            if callable(f):
+                self.preprocess[fname] = f
 
     def setupPublisher(self, topic_data):
         # load message type
