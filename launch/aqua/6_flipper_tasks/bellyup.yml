@@ -2,7 +2,7 @@ output_directory: /localdata/bellyup6/
 
 default_task_params: &default_task_params
   initial_random_trials: 5
-  random_exp_path: /localdata/rnd_experience6_dt_075.zip
+  random_exp_path: /localdata/rnd_experience6_dt_0_75.zip
   n_opt: 50
   horizon_secs: 20.0
   discount: 1.0
@@ -10,8 +10,8 @@ default_task_params: &default_task_params
   random_walk: True
   wrap_angles: True
   return_best: False
-  n_samples: 100
-  learning_rate: !numpy 1e-3
+  n_samples: 500
+  learning_rate: !numpy 1e-5
   # options for truncated backpropagation through time
   # split the horizon in split_H segments and, for each segment, remove
   # truncate_gradient time steps from the beginning of the sequence
@@ -33,11 +33,11 @@ default_bnn_params: &default_bnn_params
   # TODO, these dimensions should be inferred from data
   idims: 22 # non_angle_state_dims + 2*angle_state_dims + controls
   odims: 7 # state_dims
-  max_evals: 2000 # max evals for optimizer (.train() method)  
+  max_evals: 4000 # max evals for optimizer (.train() method)  
 
 default_network_spec: &default_network_spec
   hidden_dims: !numpy '[200]*4'
-  p: 0.1
+  p: 0.25
   p_input: 0.0
   nonlinearities: !!python/name:kusanagi.ghost.regression.nonlinearities.rectify
   W_init: !!python/object/apply:lasagne.init.Orthogonal {}

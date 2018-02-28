@@ -1,8 +1,8 @@
-output_directory: /localdata/corkscrew2/
+output_directory: /localdata/juan/iros2018/corkscrew2/
 
 default_task_params: &default_task_params
   initial_random_trials: 5
-  random_exp_path: /localdata/rnd_experience2_dt_075.zip
+  random_exp_path: /localdata/juan/iros2018/rnd_experience2_dt_1_0.zip
   n_opt: 50
   horizon_secs: 20.0
   discount: 1.0
@@ -10,8 +10,8 @@ default_task_params: &default_task_params
   random_walk: True
   wrap_angles: True
   return_best: False
-  n_samples: 100
-  learning_rate: !numpy 1e-3
+  n_samples: 400
+  learning_rate: !numpy 1e-4
   # options for truncated backpropagation through time
   # split the horizon in split_H segments and, for each segment, remove
   # truncate_gradient time steps from the beginning of the sequence
@@ -45,7 +45,7 @@ default_network_spec: &default_network_spec
   build_fn: !!python/name:kusanagi.ghost.regression.dropout_mlp
 
 default_plant: &default_plant_params
-    dt: 0.75
+    dt: 1.0
     state0_dist: &state0_dist !!python/object/apply:kusanagi.utils.distributions.Gaussian
       kwds: &state0_dist_kwds
         mean: !numpy np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
@@ -57,7 +57,7 @@ default_loss_graph: &default_loss_graph !!python/object/apply:functools.partial
   args: [*func_]
   kwds:  
     loss_func: !!python/name:kusanagi.shell.cost.quadratic_saturating_loss
-    cw: !numpy 0.15*np.pi/3
+    cw: !numpy 0.25*np.pi/3
     expl: 0.0
 
 default_loss_fn: &default_loss_fn !!python/object/apply:kusanagi.shell.cost.build_loss_func

@@ -1,7 +1,8 @@
-output_directory: /localdata/robot_learning/
+output_directory: /localdata/juan/iros2018/bellyup6legs/
 
 default_task_params: &default_task_params
-  initial_random_trials: 2
+  initial_random_trials: 5
+  random_exp_path: /localdata/juan/iros2018/rnd_experience6_dt_0_5.zip
   n_opt: 50
   horizon_secs: 20.0
   discount: 1.0
@@ -9,9 +10,8 @@ default_task_params: &default_task_params
   random_walk: True
   wrap_angles: True
   return_best: False
-  n_samples: 100
-  noisy_policy_input: True
-  learning_rate: !numpy 1e-3
+  n_samples: 500
+  learning_rate: !numpy 1e-4
   # options for truncated backpropagation through time
   # split the horizon in split_H segments and, for each segment, remove
   # truncate_gradient time steps from the beginning of the sequence
@@ -21,25 +21,26 @@ default_task_params: &default_task_params
   crn: 200
   mm_cost: True
   mm_state: True
+  noisy_policy_input: True
 
 default_policy_params: &default_policy_params
-  input_dims: 7  # TODO, this should be inferred from data
+  input_dims: 13  # TODO, this should be inferred from data
   angle_dims: *default_angle_dims
-  maxU: !numpy "[np.sqrt(np.pi/3)]*2 + [np.pi/3]*2"
+  maxU: !numpy "[np.sqrt(np.pi/4)]*6 + [np.pi/3]*6 + [np.pi]*6"
   sat: !!python/name:kusanagi.ghost.control.saturation.tanhSat
 
 default_bnn_params: &default_bnn_params
   # TODO, these dimensions should be inferred from data
-  idims: 14 # non_angle_state_dims + 2*angle_state_dims + controls
-  odims: 7 # state_dims
-  max_evals: 2000 # max evals for optimizer (.train() method)  
+  idims: 34 # non_angle_state_dims + 2*angle_state_dims + controls
+  odims: 13 # state_dims
+  max_evals: 4000 # max evals for optimizer (.train() method)  
 
 default_network_spec: &default_network_spec
   hidden_dims: !numpy '[200]*4'
-  p: 0.1
+  p: 0.25
   p_input: 0.0
   nonlinearities: !!python/name:kusanagi.ghost.regression.nonlinearities.rectify
-  W_init: !!python/object/apply:lasagne.init.GlorotNormal {}
+  W_init: !!python/object/apply:lasagne.init.Orthogonal {}
   dropout_class: !!python/name:kusanagi.ghost.regression.layers.DenseDropoutLayer
   build_fn: !!python/name:kusanagi.ghost.regression.dropout_mlp
 
@@ -47,8 +48,11 @@ default_plant: &default_plant_params
     dt: 0.5
     state0_dist: &state0_dist !!python/object/apply:kusanagi.utils.distributions.Gaussian
       kwds: &state0_dist_kwds
-        mean: !numpy np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-        cov: !numpy np.eye(7)*(0.25**2)
+        mean: !numpy np.array([0.0, 0.0, 0.0,
+                               1.0,
+                               0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        cov: !numpy np.eye(13)*(0.2**2)
     name: 'AquaRobotEnv'
 
 default_loss_graph: &default_loss_graph !!python/object/apply:functools.partial
@@ -56,7 +60,7 @@ default_loss_graph: &default_loss_graph !!python/object/apply:functools.partial
   args: [*func_]
   kwds:  
     loss_func: !!python/name:kusanagi.shell.cost.quadratic_saturating_loss
-    cw: 0.25
+    cw: 0.4
     expl: 0.0
 
 default_loss_fn: &default_loss_fn !!python/object/apply:kusanagi.shell.cost.build_loss_func
@@ -67,25 +71,25 @@ default_loss_fn: &default_loss_fn !!python/object/apply:kusanagi.shell.cost.buil
     Q: !!python/object/apply:theano.tensor.matrix ['Q']
 
 default_Q: 
-  angle: &angle_Q !numpy np.diag([1.0, 0, 0, 0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]) # Use this for angle-stabilization tasks
-  roll: &rollrate_Q !numpy np.diag([1.0, 1.0, 0, 0, 0, 0, 1.0, 1.0, 1.0, 1.0]) # Use this for fixed roll-rate tasks 
+  angle:   &angle_Q !numpy np.diag([1.0, 0.0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]) # Use this for angle-stabilization tasks
+  roll: &rollrate_Q !numpy np.diag([1.0, 1.0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]) # Use this for fixed roll-rate tasks 
 
 tasks:
-   depth_change_1m:
+   knife_edge6:
     <<: *default_task_params
     cost:
-      params: &dc_cost_params
+      params: &bu_cost_params
         angle_dims: *default_angle_dims
-        target: !numpy "[0, 0, 0, 2.0, 0.0, 0, 0]"
+        target: !numpy "[np.pi, 0, 0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
         Q: *angle_Q
-      fn: &dc_cost !!python/object/apply:functools.partial
+      fn: &bu_cost !!python/object/apply:functools.partial
         args: [*default_loss_fn]
         kwds:
-          <<: *dc_cost_params
+          <<: *bu_cost_params
       graph: !!python/object/apply:functools.partial
         args: [*default_loss_graph]
         kwds:
-          <<: *dc_cost_params
+          <<: *bu_cost_params
     policy: !!python/object/apply:kusanagi.ghost.control.NNPolicy
       kwds:
         <<: *default_policy_params
@@ -100,8 +104,8 @@ tasks:
           dropout_class: !!python/name:kusanagi.ghost.regression.layers.DenseLogNormalDropoutLayer
     plant:
       <<: *default_plant_params
-      loss_func: *dc_cost
+      loss_func: *bu_cost
     optimizer: !!python/object/apply:kusanagi.ghost.optimizers.SGDOptimizer
         kwds:
           min_method: 'ADAM'
-          max_evals: 400
+          max_evals: 500
