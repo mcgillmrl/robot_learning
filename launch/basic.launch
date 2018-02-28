@@ -1,11 +1,13 @@
 <launch>
-  <arg name="learning_task_parameters" default="aqua/corkscrew.yml"/>
+  <arg name="topic_description" default="aqua/6flipper_wlegstate_topics.yml"/>
+  <arg name="experience_rate" default="250"/>
+  <arg name="slop" default="0.05"/>
 
   <!-- bridge observations and actions streams for RL with ROS topics-->
   <include file="$(find robot_learning)/launch/topics2vec.launch">
-    <arg name="topic_description" value="aqua/6flipper_wlegstate_topics.yml"/>
-    <arg name="experience_rate" value="500"/>
-    <arg name="slop" value="0.05"/>
+    <arg name="topic_description" value="$(arg topic_description)"/>
+    <arg name="experience_rate" value="$(arg experience_rate)"/>
+    <arg name="slop" value="$(arg slop)"/>
   </include>
 
   <!--bridge signals for restting and stopping the robot-->
