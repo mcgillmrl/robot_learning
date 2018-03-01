@@ -168,8 +168,9 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
         task_state[task_name] = 'ready'
 
     # check if task is done
+    init_polopt_iter = task_spec.get('init_polopt_iter', 0)
     n_polopt_iters = len([p for p in exp.policy_parameters if len(p) > 0])
-    if n_polopt_iters >= task_spec['n_opt']:
+    if n_polopt_iters > task_spec['n_opt'] + init_polopt_iter:
         task_state[task_name] = 'done'
     # put task in the queue for execution
     task_queue.put((task_name, task_spec))
@@ -286,6 +287,10 @@ if __name__ == '__main__':
                     pol.set_params(exp.policy_parameters[-1])
                 # exp.truncate(spec['initial_random_trials'])
                 spec['initial_random_trials'] -= exp.n_episodes()
+                # in case we are loading policy parameters, increase the n_opt counter
+                n_polopt_iters = len([p for p in exp.policy_parameters if len(p) > 0])
+                spec['init_polopt_iter'] = n_polopt_iters
+                print n_polopt_iters
                 task_state[task_name] = 'ready'
         spec['experience'] = exp
         # trigger policy init (for kusanagi only)
@@ -374,7 +379,7 @@ if __name__ == '__main__':
         if task_state[name] == 'done':
             rospy.loginfo(
                 'Finished %s task [iteration %d]' % (
-                    name, exp.n_episodes()+1-n_rnd))
+                    name, exp.n_episodes()-n_rnd))
             break # TODO don't break when running multiple tasks
 
         spec['experience'] = exp
