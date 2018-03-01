@@ -11,7 +11,7 @@ default_task_params: &default_task_params
   wrap_angles: True
   return_best: False
   n_samples: 500
-  learning_rate: !numpy 1e-5
+  learning_rate: !numpy 1e-4
   # options for truncated backpropagation through time
   # split the horizon in split_H segments and, for each segment, remove
   # truncate_gradient time steps from the beginning of the sequence
@@ -26,7 +26,7 @@ default_task_params: &default_task_params
 default_policy_params: &default_policy_params
   input_dims: 13  # TODO, this should be inferred from data
   angle_dims: *default_angle_dims
-  maxU: !numpy "[np.sqrt(np.pi/4)]*6 + [np.pi/3]*6 + [np.pi]*6"
+  maxU: !numpy "[np.sqrt(np.pi/6)]*6 + [np.pi/3]*6 + [np.pi]*6"
   sat: !!python/name:kusanagi.ghost.control.saturation.tanhSat
 
 default_bnn_params: &default_bnn_params
@@ -37,7 +37,7 @@ default_bnn_params: &default_bnn_params
 
 default_network_spec: &default_network_spec
   hidden_dims: !numpy '[200]*4'
-  p: 0.25
+  p: 0.2
   p_input: 0.0
   nonlinearities: !!python/name:kusanagi.ghost.regression.nonlinearities.rectify
   W_init: !!python/object/apply:lasagne.init.Orthogonal {}
@@ -60,7 +60,7 @@ default_loss_graph: &default_loss_graph !!python/object/apply:functools.partial
   args: [*func_]
   kwds:  
     loss_func: !!python/name:kusanagi.shell.cost.quadratic_saturating_loss
-    cw: 0.4
+    cw: 0.2
     expl: 0.0
 
 default_loss_fn: &default_loss_fn !!python/object/apply:kusanagi.shell.cost.build_loss_func
