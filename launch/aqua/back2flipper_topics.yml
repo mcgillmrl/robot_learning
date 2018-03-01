@@ -21,7 +21,7 @@ experience_command_topics:
     - topic_name: /aqua/periodic_leg_command
       type: {package: aquacore, name: PeriodicLegCommand}
       filter: ["amplitudes[2]","amplitudes[5]","leg_offsets[2]","leg_offsets[5]"]
-      default_values: { frequencies: 2.0 }
+      default_values: { frequencies: 2.5 }
 
 # preprocessing operations are square, abs, deg2rad and rad2deg
 preprocessing_operations:

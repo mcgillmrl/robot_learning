@@ -5,62 +5,21 @@
     whe new model is available
 '''
 import argparse
+import dill
 import numpy as np
 import os
 import rospy
-import threading
-import yaml
-import requests
-import pickle
+import sys
 
-from collections import OrderedDict
-from functools import partial
-from Queue import Queue, Empty
+from kusanagi.base import ExperienceDataset
+from kusanagi.shell.cost import build_loss_func
+from kusanagi.shell.experiment_utils import evaluate_policy
+from kusanagi import utils
 from ros_plant import ROSPlant
 
-from kusanagi.base import (apply_controller, train_dynamics,
-                           preprocess_angles, ExperienceDataset)
-from kusanagi.ghost.algorithms import mc_pilco
-from kusanagi.ghost.control import RandPolicy
-from kusanagi import utils
 
-compile_lock = threading.RLock()
-
-def numpy_code_constructor(loader, node):
-    code_string = loader.construct_scalar(node)
-    return eval(code_string)
-
-
-def include_constructor(loader, node):
-    filename = loader.construct_scalar(node)
-    if not os.path.isabs(filename):
-        root = os.path.dirname(loader.stream.name)
-        filename = os.path.abspath(os.path.join(root, filename))
-    data = {}
-    with open(filename, 'r') as f:
-        data = yaml.load(f)
-    return data
-
-
-def default_config():
-    config = dict(
-        initial_random_trials=4,
-        output_directory='/data/robot_learning',
-    )
-    return config
-
-
-def parse_config(config_path):
-    '''
-        loads configuration for learning tasks (policy and costs parameters)
-        from a yaml file
-    '''
-    yaml.add_constructor('!include', include_constructor)
-    yaml.add_constructor('!numpy', numpy_code_constructor)
-    config = default_config()
-    with open(config_path, 'r') as f:
-        config = yaml.load(f)
-    return config
+def check_files_suffix(files, suffix):
+    return [fname for fname in files if fname.find(suffix) > 0]
 
 
 if __name__ == '__main__':
@@ -70,122 +29,65 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         'rosrun robot_learning task_client.py')
     parser.add_argument(
-        'config_path', metavar='FILE',
-        help='A YAML file containing the configuration for the learning task.',
+        'results_path', metavar='DIR',
+        help='The location of the results .dill and zip files',
         type=str)
+    parser.add_argument(
+        '-n', '--n_evals', metavar='N', default=1,
+        help='Run each policy N times per episode',
+        type=int)
+    parser.add_argument(
+        '-w', '--cost_width', metavar='w',
+        help='cost_width for distance based cost',
+        type=float)
 
     # args = parser.parse_args()
     args = parser.parse_args(rospy.myargv()[1:])
     load_experience = True
 
-    # import yaml
-    config = parse_config(args.config_path)
-
     # init output dir
-    output_directory = config['output_directory']
-    utils.set_output_dir(output_directory)
-    try:
-        os.mkdir(output_directory)
-    except Exception as e:
-        if not load_experience:
-            # move the old stuff
-            dir_time = str(os.stat(output_directory).st_ctime)
-            target_dir = os.path.dirname(output_directory)+'_'+dir_time
-            os.rename(output_directory, target_dir)
-            os.mkdir(output_directory)
-            utils.print_with_stamp(
-                'Moved old results from [%s] to [%s]' % (output_directory,
-                                                         target_dir))
+    utils.set_output_dir(args.results_path)
+    utils.print_with_stamp('Results will be saved in [%s]' % args.results_path)
 
-    utils.print_with_stamp('Results will be saved in [%s]' % output_directory)
+    # load config
+    files = os.listdir(args.results_path)
+    spec_paths = check_files_suffix(files, '_spec.dill')
+    if len(spec_paths) == 0:
+        utils.print_with_stamp("No *_spec.dill file found. Quitting...")
+        sys.exit(-1)
+    spec_path = os.path.join(args.results_path, spec_paths[0])
+    print spec_path, spec_paths
+    f = open(spec_path)  # TODO what if we have more than one dill file
+    config = dill.load(f)
 
-    # init environment with first task params
-    plant_params = config['tasks'].values()[0]['plant']
+    #  load experience dataset
+    exp_paths = check_files_suffix(files, '_dataset.zip')
+    if len(spec_paths) == 0:
+        utils.print_with_stamp("No *_dataset.zip file found. Quitting...")
+        sys.exit(-1)
+    exp = ExperienceDataset(filename=exp_paths[0].split('.')[0])
+
+    # init environment with task params
+    plant_params = config['plant']
+    if args.cost_width is not None:
+        # replace cost function with new one
+        cost_params = config['cost']['params']
+        config['cost']['graph'].func.keywords['cw'] = args.cost_width
+        loss = config['cost']['graph']
+        plant_params['loss_func'] = build_loss_func(
+            loss, **config['cost']['params'])
+
     env = ROSPlant(**plant_params)
 
-    # init task queue and list of learning threads
-    tasks = Queue()
-    task_state = {}
-    polopt_threads = []
+    # get dynamics model and policy
+    angle_dims = config['angle_dims']
+    dyn = config['transition_model']
+    pol = config['policy']
 
-    # populate task queue
-    for task_name in config['tasks']:
-        task_state[task_name] = 'init'
-        spec = config['tasks'][task_name]
-        exp = spec.get('experience', None)
-        pol = spec['policy']
-        pol.evaluate(np.zeros(pol.D))
-        random_exp_path = spec.get('random_exp_path', None)
-        if exp is None:
-            exp = ExperienceDataset(name=task_name)
-            if not exp.load() and random_exp_path is not None:
-                base_path, filename = os.path.split(
-                    random_exp_path)
-                fname = exp.filename
-                exp.load(base_path, filename)
-                # restore previous filename
-                exp.filename = fname
-
-            if exp.n_episodes() > 0:
-                if len(exp.policy_parameters[-1]) > 0:
-                    pol.set_params(exp.policy_parameters[-1])
-                spec['initial_random_trials'] -= exp.n_episodes()
-                task_state[task_name] = 'ready'
-        spec['experience'] = exp
-        n_rnd = len([p for p in exp.policy_parameters if len(p) == 0])
-        spec['current_iteration'] = n_rnd
-        tasks.put((task_name, spec))
-
-
-    # while tasks are not done
-    while not all([st == 'done' for st in task_state]):
-        # get new task
-        new_task_ready = False
-        rospy.loginfo('Waiting for new task')
-        while not new_task_ready:
-            try:
-                name, spec = tasks.get(timeout=5)
-                new_task_ready = True
-            except Empty:
-                pass
-        #utils.set_logfile("%s.log" % name, base_path="/localdata")
-        # if task is done, pass
-        exp = spec.get('experience')
-        n_rnd = len([p for p in exp.policy_parameters if len(p) == 0])
-        if task_state[name] == 'done':
-            rospy.loginfo(
-                'Finished %s task [iteration %d]' % (
-                    name, spec['current_iteration']-n_rnd+1))
-            continue
-        msg_ = '==== Executing %s task [iteration %d] ====' % (
-            name, spec['current_iteration']-n_rnd+1)
-        rospy.loginfo(msg_)
-        utils.print_with_stamp(msg_)
-
-        # set plant parameters for current task
-        plant_params = spec['plant']
-        env.init_params(**plant_params)
-
-        # load policy
-        pol_params = exp.policy_parameters[spec['current_iteration']]
-        if len(pol_params) == 0:
-            # collect random experience
-            pol = RandPolicy(maxU=spec['policy'].maxU,
-                             random_walk=spec.get('random_walk', False))
-        else:
-            # TODO load policy parameters from disk
-            pol = spec['policy']
-            pol.set_params(pol_params)
-        # set task horizon
-        H = int(np.ceil(spec['horizon_secs']/env.dt))
-
-        # execute tasks and collect experience data
-        preprocess = None
-        if hasattr(pol, 'angle_dims'):
-            preprocess = partial(
-                preprocess_angles, angle_dims=pol.angle_dims)
-        apply_controller(env, pol, H, preprocess)
-
-        spec['current_iteration'] += 1
-        tasks.put((name, spec))
-
+    H = int(np.ceil(config['horizon_secs']/config['plant']['dt']))
+    config['min_steps'] = H
+    results = evaluate_policy(env, pol, exp, config, n_tests=args.n_evals)
+    with open(
+        os.path.join(
+            args.results_path, 'results_%d.dill') % (args.n_evals), 'wb') as f:
+        dill.dump(results, f)
