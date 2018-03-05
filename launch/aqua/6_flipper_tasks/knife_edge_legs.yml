@@ -26,7 +26,8 @@ default_task_params: &default_task_params
 default_policy_params: &default_policy_params
   input_dims: 13  # TODO, this should be inferred from data
   angle_dims: *default_angle_dims
-  maxU: !numpy "[np.sqrt(np.pi/6)]*6 + [np.pi/3]*6 + [np.pi]*6"
+  maxU: !numpy "[np.pi/4]*6 + [np.pi/3]*6 + [np.pi]*6"
+  minU: !numpy "[0]*6 + [-np.pi/3]*6 + [-np.pi]*6"
   sat: !!python/name:kusanagi.ghost.control.saturation.tanhSat
 
 default_bnn_params: &default_bnn_params
@@ -37,7 +38,7 @@ default_bnn_params: &default_bnn_params
 
 default_network_spec: &default_network_spec
   hidden_dims: !numpy '[200]*4'
-  p: 0.2
+  p: 0.25
   p_input: 0.0
   nonlinearities: !!python/name:kusanagi.ghost.regression.nonlinearities.rectify
   W_init: !!python/object/apply:lasagne.init.Orthogonal {}
@@ -60,7 +61,7 @@ default_loss_graph: &default_loss_graph !!python/object/apply:functools.partial
   args: [*func_]
   kwds:  
     loss_func: !!python/name:kusanagi.shell.cost.quadratic_saturating_loss
-    cw: !numpy 0.1*np.pi/2
+    cw: !numpy 0.15*np.pi/2
     expl: 0.0
 
 default_loss_fn: &default_loss_fn !!python/object/apply:kusanagi.shell.cost.build_loss_func

@@ -30,7 +30,6 @@ experience_command_topics: [
 preprocessing_operations: {
     RollAngle:  ['radians'],
     PitchAngle: ['radians'],
-    YawAngle:   ['radians'],
-    amplitudes: ['square']
+    YawAngle:   ['radians']
 }
 

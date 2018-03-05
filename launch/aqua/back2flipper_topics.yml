@@ -28,5 +28,3 @@ preprocessing_operations:
     RollAngle: ['radians']
     PitchAngle: ['radians']
     YawAngle: ['radians']
-    'amplitudes[2]': ['square']
-    'amplitudes[5]': ['square']
