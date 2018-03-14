@@ -10,4 +10,4 @@ A video demonstration of some of the results in the paper is available here
 
 To run the aqua robot simulator experiments, we recommend to use the docker compose file available in https://github.com/juancamilog/aqua_robot_learning_docker
 
-This is work in progress, and I'll be updating the install instructions in the coming months. If you have any questions on how to run it, please write me an e-mail at g a m b o a [at] cim [dot] mcgill [dot] ca
+This is work in progress, and I'll be updating the install instructions in the coming months. If you have any questions on how to run it, please write me an e-mail at **gamboa [at] cim [dot] mcgill [dot] ca**
