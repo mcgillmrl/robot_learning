@@ -127,6 +127,7 @@ class SubscriptionManager:
         self.filtered_fields = OrderedDict()
         self.operations = OrderedDict()
         self.topic_types = OrderedDict()
+        self.last_msg = OrderedDict()
         self.experience_data = ExperienceData()
         self.publish_on_command = False
         self.slop = slop
@@ -136,7 +137,7 @@ class SubscriptionManager:
             "/rl/experience_data", ExperienceData,queue_size=1)
 
         # setup service to query state info
-        self.command_dims_srv = rospy.Service(
+        self.state_dims_srv = rospy.Service(
             '/rl/state_dims', T2VInfo, self.state_dims)
         self.command_dims_srv = rospy.Service(
             '/rl/command_dims', T2VInfo, self.command_dims)
@@ -201,6 +202,7 @@ class SubscriptionManager:
         # releases
         vector_data = []
         for msg, topic_name in zip(args, subscribers.keys()):
+            self.last_msg[topic_name] = msg
             try:
                 # get the list of fields we want to get from corresponding to the
                 # current topic
@@ -255,7 +257,10 @@ class SubscriptionManager:
     def count_fields(self, subscribers):
         n = 0
         for topic in subscribers:
-            msg = self.topic_types[topic]()
+            if topic in self.last_msg:
+                msg = self.last_msg[topic]
+            else:
+                msg = self.topic_types[topic]()
             for field in self.filtered_fields[topic]:
                 field_value = recursive_getattr(msg, field)
                 if not (hasattr(field_value,'_type') 
