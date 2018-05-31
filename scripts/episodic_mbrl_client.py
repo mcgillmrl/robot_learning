@@ -125,7 +125,7 @@ def mc_pilco_polopt(task_name, task_spec, task_queue):
                 noisy_cost_input=noisy_cost_input,
                 noisy_policy_input=noisy_policy_input,
                 split_H=split_H,
-                truncate_gradient=(H/split_H)-truncate_gradient,
+                truncate_gradient=truncate_gradient,
                 crn=crn,
                 intermediate_outs=True,
                 **ex_in)
@@ -270,7 +270,7 @@ if __name__ == '__main__':
         spec = config['tasks'][task_name]
         exp = spec.get('experience', None)
         pol = spec['policy']
-        pol.evaluate(np.zeros(pol.D))
+        pol(np.zeros(pol.D))
         random_exp_path = spec.get('random_exp_path', None)
         if exp is None:
             exp = ExperienceDataset(name=task_name)
