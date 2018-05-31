@@ -337,6 +337,7 @@ if __name__ == '__main__':
         if task_state[name] == 'init' and spec['initial_random_trials'] > 0:
             # collect random experience
             pol = RandPolicy(maxU=spec['policy'].maxU,
+                             minU=spec['policy'].minU,
                              random_walk=spec.get('random_walk', False))
             spec['initial_random_trials'] -= 1
             if spec['initial_random_trials'] < 1:

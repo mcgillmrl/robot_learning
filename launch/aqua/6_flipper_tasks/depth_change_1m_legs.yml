@@ -28,7 +28,7 @@ default_policy_params: &default_policy_params
   angle_dims: *default_angle_dims
   maxU: !numpy "[np.pi/4]*6 + [np.pi/3]*6 + [np.pi]*6"
   minU: !numpy "[0]*6 + [-np.pi/3]*6 + [-np.pi]*6"
-  sat: !!python/name:kusanagi.ghost.control.saturation.tanhSat
+  sat_func: !!python/name:kusanagi.ghost.control.saturation.tanhSat
 
 default_bnn_params: &default_bnn_params
   # TODO, these dimensions should be inferred from data
