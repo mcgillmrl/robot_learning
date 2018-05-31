@@ -26,7 +26,8 @@ default_task_params: &default_task_params
 default_policy_params: &default_policy_params
   input_dims: 7  # TODO, this should be inferred from data
   angle_dims: *default_angle_dims
-  maxU: !numpy "[np.sqrt(np.pi/4)]*2 + [np.pi/3]*2"
+  maxU: !numpy "[np.pi/4]*2 + [np.pi/3]*2"
+  minU: !numpy "[0]*2 + [-np.pi/3]*2"
   sat: !!python/name:kusanagi.ghost.control.saturation.tanhSat
 
 default_bnn_params: &default_bnn_params
