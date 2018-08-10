@@ -18,7 +18,7 @@ import yaml
 from collections import OrderedDict
 from functools import partial
 from Queue import Queue, Empty
-from ros_plant import ROSPlant
+from robot_learning.ros_plant import ROSPlant
 
 from kusanagi.base import (apply_controller, train_dynamics,
                            preprocess_angles, ExperienceDataset)

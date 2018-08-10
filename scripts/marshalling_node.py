@@ -1,37 +1,26 @@
 #!/usr/bin/env python
-import math
 import rospy
-from std_msgs.msg import Empty, String
+
 from std_srvs.srv import Empty as EmptySrv
 from std_srvs.srv import EmptyResponse as EmptySrvResponse
 from sensor_msgs.msg import Joy
 from aquacore.msg import PeriodicLegCommand
-from aquacore.srv import SetAutopilotMode, SetString, SetStringResponse
 from JoyState import JoyState
 
+from robot_learning.marshall import MarshallNode, FSM_STATES
 
-class AquaMarshallNode:
-    def __init__(self):
-        rospy.init_node('rl_marshall')
-
-        self.FSM = 'ap'  # possible values: 'ap'/'rl'/'ap_prompt'
+class AquaMarshallNode(MarshallNode):
+    def __init__(self, name='aqua_marshall'):
+        super(AquaMarshallNode, self).__init__(name)
         self.prev_joy_state = None
 
         self.plc_out_pub = rospy.Publisher(
             '/aqua/periodic_leg_command', PeriodicLegCommand, queue_size=10)
-        self.fsm_pub = rospy.Publisher(
-            '/rl_marshall/mode', String, queue_size=10, latch=True)
-        self.trigger_start_pub = rospy.Publisher(
-            '/rl/trigger_start', Empty, queue_size=10)
-        self.trigger_stop_pub = rospy.Publisher(
-            '/rl/trigger_stop', Empty, queue_size=10)
-
         rospy.loginfo(
             '%s: waiting for /aqua/set_3Dauto_mode...' % rospy.get_name())
         rospy.wait_for_service('/aqua/set_3Dauto_mode')
         self.set_ap_mode_cln = rospy.ServiceProxy(
             '/aqua/set_3Dauto_mode', SetAutopilotMode)
-
         msg_ = '%s: waiting for /aqua/reset_3D_autopilot_state...'
         rospy.loginfo(msg_ % rospy.get_name())
         rospy.wait_for_service(
@@ -39,37 +28,30 @@ class AquaMarshallNode:
         self.reset_ap_cln = rospy.ServiceProxy(
             '/aqua/reset_3D_autopilot_state', EmptySrv)
 
-        self.set_mode_svr = rospy.Service(
-            '/rl_marshall/set_mode', SetString, self.handle_set_mode)
-        self.trigger_start_sub = rospy.Subscriber(
-            '/rl/trigger_start', Empty, self.handle_trigger_start)
-        self.trigger_stop_sub = rospy.Subscriber(
-            '/rl/trigger_stop', Empty, self.handle_trigger_stop)
-        self.trigger_reset_sub = rospy.Subscriber(
-            '/rl/trigger_reset', Empty, self.handle_trigger_reset)
         self.plc_in_ap_sub = rospy.Subscriber(
             '/sandbox/AP/periodic_leg_command', PeriodicLegCommand,
             self.handle_ap_plc)
         self.plc_in_rl_sub = rospy.Subscriber(
             '/sandbox/RL/periodic_leg_command', PeriodicLegCommand,
             self.handle_rl_plc)
+
         self.joy_sub = rospy.Subscriber(
             '/joy', Joy, self.handle_joy)
 
-        if self.FSM == 'ap' or self.FSM == 'ap_prompt':
-            self.activate_ap()
+        if self.FSM in [FSM_STATES.USER, FSM_STATES.USER_PROMPT]:
+            self.set_user_mode()
         else:
-            self.deactivate_ap()
+            self.set_rl_mode()
         self.fsm_pub.publish(String(self.FSM))
 
         rospy.loginfo(
             '%s: initialized into %s mode' % (rospy.get_name(), self.FSM))
 
-    def activate_ap(self):
+    def set_user_mode(self):
         self.reset_ap_cln()
         self.set_ap_mode_cln(4)  # depth-regulated
 
-    def deactivate_ap(self):
+    def set_rl_mode(self):
         self.reset_ap_cln()
         self.set_ap_mode_cln(0)
         self.reset_ap_cln()
@@ -80,11 +62,11 @@ class AquaMarshallNode:
         rospy.sleep(1.0)
 
     def handle_ap_plc(self, msg):
-        if self.FSM == 'ap' or self.FSM == 'ap_prompt':
+        if self.FSM in [FSM_STATES.USER, FSM_STATES.USER_PROMPT]:
             self.plc_out_pub.publish(msg)
 
     def handle_rl_plc(self, msg):
-        if self.FSM == 'rl':
+        if self.FSM == FSM_STATES.RL:
             self.plc_out_pub.publish(msg)
 
     def handle_joy(self, msg):
@@ -103,66 +85,23 @@ class AquaMarshallNode:
         # Handle E_STOP request (Select held down + B pressed)
         if joy_state.Select and not self.prev_joy_state.B and self.prev_joy_state.B:
             rospy.loginfo('%s: handling E_STOP request' % rospy.get_name())
-            self.set_mode('ap')
+            self.set_mode(FSM_STATES.USER)
 
         # Handle FORCE_AP request (Select held down + Start released)
         elif joy_state.Select and self.prev_joy_state.Start and not joy_state.Start:
-            if self.FSM == 'rl':
+            if self.FSM == FSM_STATES.RL:
                 rospy.loginfo(
                   '%s: handling FORCE_AP request' % rospy.get_name())
                 self.trigger_stop_pub.publish()
 
         # Handle TRIGGER_START request
         elif self.prev_joy_state.Start and not joy_state.Start:
-            if self.FSM == 'ap_prompt':
+            if self.FSM == FSM_STATES.USER_PROMPT:
                 rospy.loginfo(
                   '%s: handling TRIGGER_START request' % rospy.get_name())
                 self.trigger_start_pub.publish()
 
         self.prev_joy_state = joy_state
-
-    def handle_trigger_reset(self, msg):
-        if self.FSM == 'ap':
-            self.set_mode('ap_prompt')
-        else:
-            rospy.logwarn(
-              '%s: ignoring TRIGGER_RESET in %s mode' % (
-                  rospy.get_name(), self.FSM))
-
-    def handle_trigger_start(self, msg):
-        if self.FSM == 'ap_prompt':
-            self.set_mode('rl')
-        else:
-            rospy.logwarn(
-              '%s: ignoring TRIGGER_START in %s mode' % (
-                  rospy.get_name(), self.FSM))
-
-    def handle_trigger_stop(self, msg):
-        if self.FSM == 'rl':
-            self.set_mode('ap')
-        else:
-            rospy.logwarn('%s: ignoring TRIGGER_STOP in %s mode' % (
-                rospy.get_name(), self.FSM))
-
-    def handle_set_mode(self, req):
-        self.set_mode(req.value)
-        return SetStringResponse()
-
-    def set_mode(self, newFSM):  # 'rl'/'ap'/'ap_prompt'
-        if not (newFSM == 'rl' or newFSM == 'ap' or newFSM == 'ap_prompt'):
-            msg_ = '%s: set_mode arg=%s unrecognized; expecting rl|ap|ap_prompt'
-            rospy.logerr(msg_ % (rospy.get_name(), newFSM))
-            return
-
-        if newFSM != self.FSM:
-            if self.FSM == 'rl' and (newFSM == 'ap' or newFSM == 'ap_prompt'):
-                self.activate_ap()
-            elif (self.FSM == 'ap' or self.FSM == 'ap_prompt') and newFSM == 'rl':
-                # also zero-centers all flippers for 1s before returning
-                self.deactivate_ap()
-            self.FSM = newFSM
-            self.fsm_pub.publish(String(self.FSM))
-            rospy.loginfo('%s: set to %s mode' % (rospy.get_name(), self.FSM))
 
     def spin(self):
         rospy.spin()

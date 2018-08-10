@@ -25,8 +25,8 @@ class ROSPlant(gym.Env):
     def __init__(self, state0_dist=None, loss_func=None, dt=0.5,
                  noise_dist=None, angle_dims=[], name='ROSPlant',
                  init_ros_node=False, max_experience_queue_size=1000,
-                 experience_topic='/rl/command_data',
-                 command_topic='/rl/experience_data',
+                 command_topic='/rl/command_data',
+                 experience_topic='/rl/experience_data',
                  *args, **kwargs):
         # init queue. This is to ensure that we collect experience at every dt
         # seconds
@@ -46,16 +46,14 @@ class ROSPlant(gym.Env):
 
         # initialize publishers and subscribers
         self.command_pub = rospy.Publisher(
-            '/rl/command_data', ExperienceData, queue_size=-1)
+            command_topic, ExperienceData, queue_size=-1)
         self.experience_sub = rospy.Subscriber(
-            '/rl/experience_data', ExperienceData, self.experience_callback,
+            experience_topic, ExperienceData, self.experience_callback,
             queue_size=-1)
 
         # get initial state
-        self.state = self.wait_for_state(dt=0.1*self.dt)[1]
         rospy.loginfo(
             '[%s] waiting for first experience data msg...' % (self.name))
-
         self.t, self.state, self.cmd = self.wait_for_state(self.dt)
         rospy.loginfo('[%s] Ready.' % (self.name))
 

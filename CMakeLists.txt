@@ -26,7 +26,7 @@ find_package(HDF5 REQUIRED COMPONENTS CXX)
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
-# catkin_python_setup()
+catkin_python_setup()
 
 add_message_files(
   FILES
@@ -37,6 +37,7 @@ add_service_files(
   FILES
   T2VInfo.srv
   Reset.srv
+  SetString.srv
 )
 generate_messages(DEPENDENCIES std_msgs)
 

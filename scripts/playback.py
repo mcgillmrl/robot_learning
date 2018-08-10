@@ -15,7 +15,7 @@ from kusanagi.base import ExperienceDataset
 from kusanagi.shell.cost import build_loss_func
 from kusanagi.shell.experiment_utils import evaluate_policy
 from kusanagi import utils
-from ros_plant import ROSPlant
+from robot_learning.ros_plant import ROSPlant
 
 
 def check_files_suffix(files, suffix):
