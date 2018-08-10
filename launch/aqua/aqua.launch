@@ -31,8 +31,9 @@
     <param name="is_sim" value="False"/>
   </node>
 
+  <!-- marshalling node for switching between user control and RL algorithms -->
   <node pkg="robot_learning" type="marshalling_node.py" name="rl_marshall" output="screen"/>
-  <!--node pkg="robot_learning" type="task_client_kusanagi.py" output="screen" name="task_client"/-->
-  <include file="$(find robot_learning)/launch/aqua/aqua_logger.launch"/>
+
+  <!--include file="$(find robot_learning)/launch/aqua/aqua_logger.launch"/-->
 
 </launch>
