@@ -326,8 +326,9 @@ class PublisherManager:
     def vectorToTopic(self, vector_data, topic):
         # create a new message object
         msg = self.topic_types[topic]()
-        msg.header = Header()
-        msg.header.stamp = rospy.Time.now()
+        if hasattr(msg, 'header'):
+            msg.header = Header()
+            msg.header.stamp = rospy.Time.now()
 
         if isinstance(vector_data, tuple):
             vector_data = [x for x in vector_data]

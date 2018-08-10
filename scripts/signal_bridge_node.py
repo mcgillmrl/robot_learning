@@ -147,7 +147,7 @@ if __name__ == "__main__":
             name = rospy.get_name()
             rospy.loginfo(
                 '%s: auto-setting is_sim via /gazebo/reset_world...' % name)
-            rospy.wait_for_service('/gazebo/reset_world', timeout=10.0)
+            rospy.wait_for_service('/gazebo/reset_world', timeout=4.0)
         except ROSException:
             is_sim = False
 

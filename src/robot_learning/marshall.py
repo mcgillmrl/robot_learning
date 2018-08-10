@@ -42,7 +42,7 @@ class MarshallNode(object):
             elif (self.FSM == FSM_STATES.USER or self.FSM == FSM_STATES.USER_PROMPT) and newFSM == FSM_STATES.RL:
                 self.set_rl_mode()
             self.FSM = newFSM
-            self.fsm_pub.publish(String(self.FSM))
+            self.fsm_pub.publish(str(self.FSM))
             rospy.loginfo('%s: set to %s mode' % (rospy.get_name(), self.FSM))
 
     def handle_trigger_reset(self, msg):

@@ -139,6 +139,10 @@ class ROSPlant(gym.Env):
         '''
             publish control message. We send the
         '''
+        if type(u) is not np.ndarray:
+            u = np.array(u)
+        if u.ndim < 1:
+            u = u[None]
         self.u = u
         msg = ExperienceData()
         msg.header.stamp = rospy.Time()

@@ -7,7 +7,7 @@ from sensor_msgs.msg import Joy
 from aquacore.msg import PeriodicLegCommand
 from JoyState import JoyState
 
-from robot_learning.marshall import MarshallNode, FSM_STATES
+from robot_learning.marshall import *
 
 class AquaMarshallNode(MarshallNode):
     def __init__(self, name='aqua_marshall'):
@@ -42,7 +42,7 @@ class AquaMarshallNode(MarshallNode):
             self.set_user_mode()
         else:
             self.set_rl_mode()
-        self.fsm_pub.publish(String(self.FSM))
+        self.fsm_pub.publish(str(self.FSM))
 
         rospy.loginfo(
             '%s: initialized into %s mode' % (rospy.get_name(), self.FSM))
