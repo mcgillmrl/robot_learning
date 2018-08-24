@@ -183,11 +183,13 @@ class ROSPlant(gym.Env):
         '''
             calls the registered reset service with the desired state.
         '''
+        rospy.loginfo("[%s] Resetting robot..." % (self.name))
         self.reset_srv()
+        rospy.loginfo("[%s] Done! Waiting for state update..." % (self.name))
         # init time
         self.t = rospy.get_time()
         self.t, self.state, cmd = self.wait_for_state(dt=0.1*self.dt)
-
+        rospy.loginfo("[%s] Robot ready" % (self.name))
         return self.state
 
     def _close(self):
