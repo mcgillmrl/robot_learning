@@ -189,11 +189,11 @@ class SubscriptionManager:
     def startListening(self):
         if len(self.state_subscribers) > 0:
             self.state_time_sync = ApproximateTimeSynchronizer(
-                self.state_subscribers.values(), 1, self.slop)
+                self.state_subscribers.values(), 1, self.slop, allow_headerless=True)
             self.state_time_sync.registerCallback(self.stateCallback)
         if len(self.command_subscribers) > 0:
             self.command_time_sync = ApproximateTimeSynchronizer(
-                self.command_subscribers.values(), 1, self.slop)
+                self.command_subscribers.values(), 1, self.slop, allow_headerless=True)
             self.command_time_sync.registerCallback(self.commandCallback)
             self.publish_on_command = True
 
