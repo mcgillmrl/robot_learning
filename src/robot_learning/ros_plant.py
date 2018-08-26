@@ -4,12 +4,12 @@ import numpy as np
 import rospy
 
 from gym import spaces
-from Queue import Queue
+from collections import deque
 
 from std_srvs.srv import Empty as EmptySrv
 from robot_learning.msg import ExperienceData
 from robot_learning.srv import T2VInfo
-
+from kusanagi.utils import print_with_stamp
 
 class ROSPlant(gym.Env):
     '''
@@ -24,13 +24,13 @@ class ROSPlant(gym.Env):
 
     def __init__(self, state0_dist=None, loss_func=None, dt=0.5,
                  noise_dist=None, angle_dims=[], name='ROSPlant',
-                 init_ros_node=False, max_experience_queue_size=1000,
+                 init_ros_node=False, max_experience_queue_size=2000,
                  command_topic='/rl/command_data',
                  experience_topic='/rl/experience_data',
                  *args, **kwargs):
         # init queue. This is to ensure that we collect experience at every dt
         # seconds
-        self.experience_queue = Queue(maxsize=max_experience_queue_size)
+        self.experience_queue = deque(maxlen=max_experience_queue_size)
         self.t = 0
 
         # initalize internal plant parameteers
@@ -49,13 +49,14 @@ class ROSPlant(gym.Env):
             command_topic, ExperienceData, queue_size=-1)
         self.experience_sub = rospy.Subscriber(
             experience_topic, ExperienceData, self.experience_callback,
-            queue_size=-1)
+            queue_size=1000)
 
         # get initial state
         rospy.loginfo(
             '[%s] waiting for first experience data msg...' % (self.name))
         self.t, self.state, self.cmd = self.wait_for_state(self.dt)
         rospy.loginfo('[%s] Ready.' % (self.name))
+        self.prev_t = rospy.get_time()
 
     def init_params(self, state0_dist=None, loss_func=None, dt=0.5,
                     noise_dist=None, angle_dims=[], name='ROSPlant',
@@ -88,7 +89,8 @@ class ROSPlant(gym.Env):
         rospy.wait_for_service(ROSPlant.stop_srv_name)
         self.stop_srv = rospy.ServiceProxy(ROSPlant.stop_srv_name, EmptySrv)
         # init time
-        self.t = rospy.get_time()
+        self.t0 = rospy.get_time()
+        self.t = 0
 
     def init_obs_act_spaces(self):
         rospy.loginfo(
@@ -111,12 +113,12 @@ class ROSPlant(gym.Env):
     def experience_callback(self, msg):
         # put incoming messages into experience queue
         q = self.experience_queue
-        if q.full():
-            q.get()
-        t = msg.header.stamp.secs + msg.header.stamp.nsecs*1e-9
+
+        t = (msg.header.stamp.secs - self.t0) + msg.header.stamp.nsecs*1e-9 
         state = np.array(msg.state_data)
         cmd = np.array(msg.command_data)
-        q.put((t, state, cmd))
+        q.append((t, state, cmd))
+        # print_with_stamp("%s, %s" % (str(self.t), str(t)), same_line=False)
 
     def wait_for_state(self, dt=None):
         if dt is None:
@@ -125,14 +127,15 @@ class ROSPlant(gym.Env):
         t = self.t
         state = []
         cmd = []
-
+        q = self.experience_queue
+        prev_t = t
         while t < t1:
-            if self.experience_queue.empty():
+            if len(q) == 0:
                 # sleep for a short time
-                rospy.sleep(0.1*dt)
+                rospy.sleep(0.01*dt)
             else:
-                t, state, cmd = self.experience_queue.get(
-                    timeout=0.01*dt)
+                t, state, cmd = q.popleft()
+                t += self.t0
         return t, state, cmd
 
     def apply_control(self, u):
