@@ -30,8 +30,8 @@ class ROSPlant(gym.Env):
                  *args, **kwargs):
         # init queue. This is to ensure that we collect experience at every dt
         # seconds
+        self.t = rospy.get_time()
         self.experience_queue = deque(maxlen=max_experience_queue_size)
-        self.t = 0
 
         # initalize internal plant parameteers
         self.init_params(state0_dist, loss_func, dt, noise_dist, angle_dims,
@@ -54,9 +54,8 @@ class ROSPlant(gym.Env):
         # get initial state
         rospy.loginfo(
             '[%s] waiting for first experience data msg...' % (self.name))
-        self.t, self.state, self.cmd = self.wait_for_state(self.dt)
+        self.t, self.state = self.wait_for_state(self.dt)
         rospy.loginfo('[%s] Ready.' % (self.name))
-        self.prev_t = rospy.get_time()
 
     def init_params(self, state0_dist=None, loss_func=None, dt=0.5,
                     noise_dist=None, angle_dims=[], name='ROSPlant',
@@ -88,9 +87,10 @@ class ROSPlant(gym.Env):
             '[%s] waiting for %s...' % (self.name, ROSPlant.stop_srv_name))
         rospy.wait_for_service(ROSPlant.stop_srv_name)
         self.stop_srv = rospy.ServiceProxy(ROSPlant.stop_srv_name, EmptySrv)
+
         # init time
         self.t0 = rospy.get_time()
-        self.t = 0
+        self.t = self.t0
 
     def init_obs_act_spaces(self):
         rospy.loginfo(
@@ -115,44 +115,48 @@ class ROSPlant(gym.Env):
         q = self.experience_queue
 
         t = (msg.header.stamp.secs - self.t0) + msg.header.stamp.nsecs*1e-9 
-        state = np.array(msg.state_data)
-        cmd = np.array(msg.command_data)
-        q.append((t, state, cmd))
+        state = msg.state_data
+        q.append((t, state))
         # print_with_stamp("%s, %s" % (str(self.t), str(t)), same_line=False)
 
-    def wait_for_state(self, dt=None):
+    def wait_for_state(self, dt=None, slop=1.0e-2):
         if dt is None:
             dt = self.dt
         t1 = self.t + dt
         t = self.t
-        state = []
-        cmd = []
+        t_init = self.t
         q = self.experience_queue
-        prev_t = t
+        state = None
         while t < t1:
             if len(q) == 0:
                 # sleep for a short time
                 rospy.sleep(0.01*dt)
             else:
-                t, state, cmd = q.popleft()
+                t, state = q.popleft()
                 t += self.t0
-        return t, state, cmd
+                if t1 - t < slop:
+                    # we process messages that are a little bit early as if
+                    # they were on the clock at the desired rate, to avoid
+                    # accumulating delays
+                    t = t1
+                    break
+        return t, state
 
     def apply_control(self, u):
         '''
             publish control message. We send the
         '''
-        if type(u) is not np.ndarray:
-            u = np.array(u)
-        if u.ndim < 1:
-            u = u[None]
-        self.u = u
+        if type(u) is np.ndarray:
+            if u.ndim < 1:
+                u = u[None]
+            u = u.tolist() 
+        self.cmd = u
         msg = ExperienceData()
         msg.header.stamp = rospy.Time.now()
         # we fill the state msg for logging purposes, the topics to vector
         # node ignores this information.
-        msg.state_data = self.state.tolist()
-        msg.command_data = u.tolist()
+        msg.state_data = self.state
+        msg.command_data = u
         self.command_pub.publish(msg)
 
     def _step(self, action):
@@ -166,10 +170,10 @@ class ROSPlant(gym.Env):
         self.apply_control(action)
 
         # step for dt seconds
-        t, state, cmd = self.wait_for_state(self.dt)
+        t, state = self.wait_for_state(self.dt)
 
         # save latest measurement info
-        self.state = state
+        self.state = np.array(state)
         self.t = t
         info['t'] = self.t
         info['action'] = action
@@ -191,7 +195,9 @@ class ROSPlant(gym.Env):
         rospy.loginfo("[%s] Done! Waiting for state update..." % (self.name))
         # init time
         self.t = rospy.get_time()
-        self.t, self.state, cmd = self.wait_for_state(dt=0.1*self.dt)
+        self.t0 = self.t
+        self.t, self.state = self.wait_for_state(dt=0.1*self.dt)
+        self.t0 = self.t
         rospy.loginfo("[%s] Robot ready" % (self.name))
         return self.state
 
