@@ -148,7 +148,7 @@ class ROSPlant(gym.Env):
             u = u[None]
         self.u = u
         msg = ExperienceData()
-        msg.header.stamp = rospy.Time()
+        msg.header.stamp = rospy.Time.now()
         # we fill the state msg for logging purposes, the topics to vector
         # node ignores this information.
         msg.state_data = self.state.tolist()

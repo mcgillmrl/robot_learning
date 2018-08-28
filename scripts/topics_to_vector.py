@@ -68,16 +68,15 @@ def get_all_numeric_fields(msg, ignore_header=True):
                 get_all_numeric_fields(getattr(msg, field_name)))
         return return_val
 
-
 def recursive_getattr(obj, attr):
-    if '.' not in attr and '[' not in attr:
-        return getattr(obj, attr)
-    elif '.' not in attr and '[' in attr:
-        attr_data = attr.split('[', 1)
-        index = int(attr_data[1].split(']', 1)[0])
-        attr_list = getattr(obj, attr_data[0])
-        # return eval('attr_list['+index+']')
-        return attr_list[index]
+    if '.' not in attr:
+        if '[' not in attr:
+            return getattr(obj, attr)
+        else:
+            attr_data = attr.split('[', 1)
+            index = int(attr_data[1].split(']', 1)[0])
+            attr_list = getattr(obj, attr_data[0])
+            return attr_list[index]
     else:
         attr_data = attr.split('.', 1)
         return recursive_getattr(getattr(obj, attr_data[0]), attr_data[1])
@@ -145,7 +144,7 @@ class SubscriptionManager:
             '/rl/command_dims', T2VInfo, self.command_dims)
 
         # setup a timer for publishing
-        dt = rospy.Duration(1.0/(rospy.get_param("~rate", 50)))
+        dt = rospy.Duration(1.0/(rospy.get_param("~rate", 100)))
         rospy.loginfo('dt: %s' % (1/(dt.secs+1e-9*dt.nsecs)))
         rospy.Timer(dt, self.publishExperience)
 
