@@ -119,7 +119,7 @@ class ROSPlant(gym.Env):
         q.append((t, state))
         # print_with_stamp("%s, %s" % (str(self.t), str(t)), same_line=False)
 
-    def wait_for_state(self, dt=None, slop=1.0e-2):
+    def wait_for_state(self, dt=None, slop=1.0e-3):
         if dt is None:
             dt = self.dt
         t1 = self.t + dt
