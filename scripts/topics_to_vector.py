@@ -364,6 +364,8 @@ class PublisherManager:
         # publish the message
         self.command_publishers[topic].publish(msg)
 
+        return idx
+
     def commandDataCallback(self, msg):
         # the elements from the vector will populate the fields in the messages
         # for the publishers in the order specified by the keys of the
@@ -379,10 +381,8 @@ class PublisherManager:
         # field_I
         element_index = 0
         for topic in self.command_publishers.keys():
-            vector_data = msg.command_data[
-                element_index:element_index+len(self.filtered_fields[topic])]
-            self.vectorToTopic(vector_data, topic)
-            element_index += len(self.filtered_fields[topic])
+            vector_data = msg.command_data[element_index:]
+            element_index += self.vectorToTopic(vector_data, topic)
 
 
 if __name__ == '__main__':
