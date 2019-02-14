@@ -106,9 +106,9 @@ class ROSPlant(gym.Env):
 
         # TODO get min max ranges from config file or from service
         o_lims = np.array([1e3 for i in range(sdims().value)])
-        self.observation_space = spaces.Box(-o_lims, o_lims)
+        self.observation_space = spaces.Box(-o_lims, o_lims, dtype=np.double)
         a_lims = np.array([1e3 for i in range(cdims().value)])
-        self.action_space = spaces.Box(-a_lims, a_lims)
+        self.action_space = spaces.Box(-a_lims, a_lims, dtype=np.double)
 
     def experience_callback(self, msg):
         # put incoming messages into experience queue
@@ -159,7 +159,7 @@ class ROSPlant(gym.Env):
         msg.command_data = u
         self.command_pub.publish(msg)
 
-    def _step(self, action):
+    def step(self, action):
         # apply action and return state dt seconds after sending command
         # For control tasks, the robot driver should be responsible to decide
         # whether to use zero-order hold (constant command during dt) or
@@ -186,7 +186,7 @@ class ROSPlant(gym.Env):
         # return output following the openai gym convention
         return self.state, cost, False, info
 
-    def _reset(self):
+    def reset(self):
         '''
             calls the registered reset service with the desired state.
         '''
@@ -201,7 +201,7 @@ class ROSPlant(gym.Env):
         rospy.loginfo("[%s] Robot ready" % (self.name))
         return self.state
 
-    def _close(self):
+    def close(self):
         '''
             class any registered service with empty messages
         '''
