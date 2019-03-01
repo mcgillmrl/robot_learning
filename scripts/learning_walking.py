@@ -1,9 +1,10 @@
 #!/usr/bin/env python2
 
+import numpy as np
 import rospy
+
 from robot_learning.ros_plant import ROSPlant
 from robot_learning.srv import T2VInfo
-import numpy as np
 
 
 def tripod_gait(state, cmd, dt, period=1.5, offset=0.785,
@@ -34,10 +35,20 @@ def tripod_gait(state, cmd, dt, period=1.5, offset=0.785,
     return cmd, standing
 
 
+def reward(states, actions):
+    # TODO make this a reasonable reward
+    return states.sum() + actions.sum()
+
+
 if __name__ == '__main__':
     rospy.init_node('learning_to_walk')
 
-    env = ROSPlant(dt=rospy.get_param('~dt', 0.05))
+    gazebo_synchronous = rospy.get_param('gazebo_syncrohonous', True)
+
+    env = ROSPlant(
+        dt=rospy.get_param('~dt', 0.05),
+        reward_func=reward,
+        gazebo_synchronous=gazebo_synchronous)
     state = env.reset()
     t = rospy.get_time()
     command_dims_service = rospy.ServiceProxy('/rl/command_dims', T2VInfo)
@@ -48,15 +59,21 @@ if __name__ == '__main__':
     cmd[:6] = offset
 
     state, reward, info, done = env.step(cmd)
+
     standing = True
 
+    if gazebo_synchronous:
+        env.unpause()
     rospy.sleep(1.0)
+    if gazebo_synchronous:
+        env.pause()
 
     prev_t = rospy.get_time()
     while not rospy.is_shutdown():
         t = rospy.get_time()
         dt = (t - prev_t)
         prev_t = t
+
         cmd, standing = tripod_gait(
             state, cmd, dt, offset=offset, standing=standing)
         state, reward, info, done = env.step(cmd)

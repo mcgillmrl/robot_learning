@@ -9,7 +9,7 @@ from collections import deque
 from std_srvs.srv import Empty as EmptySrv
 from robot_learning.msg import ExperienceData
 from robot_learning.srv import T2VInfo
-#from kusanagi.utils import print_with_stamp
+
 
 class ROSPlant(gym.Env):
     '''
@@ -22,19 +22,31 @@ class ROSPlant(gym.Env):
     command_dims_srv_name = '/rl/command_dims'
     state_dims_srv_name = '/rl/state_dims'
 
-    def __init__(self, state0_dist=None, loss_func=None, dt=0.5,
+    def __init__(self, state0_dist=None, reward_func=None, dt=0.5,
                  noise_dist=None, angle_dims=[], name='ROSPlant',
                  init_ros_node=False, max_experience_queue_size=2000,
                  command_topic='/rl/command_data',
                  experience_topic='/rl/experience_data',
+                 gazebo_synchronous=False,
                  *args, **kwargs):
         # init queue. This is to ensure that we collect experience at every dt
         # seconds
         self.t = rospy.get_time()
         self.experience_queue = deque(maxlen=max_experience_queue_size)
 
+        # if gazebo sim synchronous
+        self.gazebo_synchronous = gazebo_synchronous
+        if gazebo_synchronous:
+            rospy.loginfo(
+                '%s: waiting for /gazebo/pause_physics...' % name)
+            rospy.wait_for_service('/gazebo/pause_physics')
+            self.pause = rospy.ServiceProxy(
+                '/gazebo/pause_physics', EmptySrv)
+            self.unpause = rospy.ServiceProxy(
+                '/gazebo/unpause_physics', EmptySrv)
+
         # initalize internal plant parameteers
-        self.init_params(state0_dist, loss_func, dt, noise_dist, angle_dims,
+        self.init_params(state0_dist, reward_func, dt, noise_dist, angle_dims,
                          name, *args, **kwargs)
 
         # initialize ros node, publishers and subscribers
@@ -57,7 +69,7 @@ class ROSPlant(gym.Env):
         self.t, self.state = self.wait_for_state(self.dt)
         rospy.loginfo('[%s] Ready.' % (self.name))
 
-    def init_params(self, state0_dist=None, loss_func=None, dt=0.5,
+    def init_params(self, state0_dist=None, reward_func=None, dt=0.5,
                     noise_dist=None, angle_dims=[], name='ROSPlant',
                     *args, **kwargs):
         self.name = name
@@ -72,7 +84,7 @@ class ROSPlant(gym.Env):
         # user specified reward/loss function. takes as input state vector,
         # produces as output scalar reward/cost. If not specified, the step
         # function will return None for the reward/loss function
-        self.loss_func = loss_func
+        self.reward_func = reward_func
 
     def ros_init(self, init_ros_node=False):
         # init plant ros node
@@ -122,9 +134,13 @@ class ROSPlant(gym.Env):
     def wait_for_state(self, dt=None, slop=1.0e-3):
         if dt is None:
             dt = self.dt
+
+        if self.gazebo_synchronous:
+            self.unpause()
+
         t1 = self.t + dt
         t = self.t
-        t_init = self.t
+
         q = self.experience_queue
         state = None
         while t < t1:
@@ -139,6 +155,8 @@ class ROSPlant(gym.Env):
                     # they were on the clock at the desired rate, to avoid
                     # accumulating delays
                     t = t1
+                    if self.gazebo_synchronous:
+                        self.pause()
                     break
         return t, state
 
@@ -178,13 +196,13 @@ class ROSPlant(gym.Env):
         info['t'] = self.t
         info['action'] = action
 
-        # evaluate cost, if given
-        cost = None
-        if self.loss_func is not None:
-            cost = self.loss_func(self.state[None, :])
+        # evaluate reward, if given
+        reward = None
+        if self.reward_func is not None:
+            reward = self.reward_func(self.state[None, :], action[None, :])
 
         # return output following the openai gym convention
-        return self.state, cost, False, info
+        return self.state, reward, False, info
 
     def reset(self):
         '''
