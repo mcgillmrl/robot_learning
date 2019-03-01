@@ -4,6 +4,7 @@ import rospy
 from std_srvs.srv import Empty as EmptySrv
 from std_srvs.srv import EmptyResponse as EmptySrvResponse
 from sensor_msgs.msg import Joy
+from aquacore.srv import SetAutopilotMode
 from aquacore.msg import PeriodicLegCommand
 from JoyState import JoyState
 
