@@ -28,6 +28,7 @@ class ROSPlant(gym.Env):
                  command_topic='/rl/command_data',
                  experience_topic='/rl/experience_data',
                  gazebo_synchronous=False,
+                 reset_callback=None,
                  *args, **kwargs):
         # init queue. This is to ensure that we collect experience at every dt
         # seconds
@@ -44,6 +45,7 @@ class ROSPlant(gym.Env):
                 '/gazebo/pause_physics', EmptySrv)
             self.unpause = rospy.ServiceProxy(
                 '/gazebo/unpause_physics', EmptySrv)
+        self.reset_callback = reset_callback
 
         # initalize internal plant parameteers
         self.init_params(state0_dist, reward_func, dt, noise_dist, angle_dims,
@@ -199,7 +201,7 @@ class ROSPlant(gym.Env):
         # evaluate reward, if given
         reward = None
         if self.reward_func is not None:
-            reward = self.reward_func(self.state[None, :], action[None, :])
+            reward = self.reward_func(self.state, action)
 
         # return output following the openai gym convention
         return self.state, reward, False, info
@@ -217,6 +219,10 @@ class ROSPlant(gym.Env):
         self.t, self.state = self.wait_for_state(dt=0.1*self.dt)
         self.t0 = self.t
         rospy.loginfo("[%s] Robot ready" % (self.name))
+
+        if callable(self.reset_callback):
+            self.reset_callback
+
         return self.state
 
     def close(self):

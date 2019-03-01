@@ -35,19 +35,30 @@ def tripod_gait(state, cmd, dt, period=1.5, offset=0.785,
     return cmd, standing
 
 
-def reward(states, actions):
-    # TODO make this a reasonable reward
-    return states.sum() + actions.sum()
+
+
 
 
 if __name__ == '__main__':
     rospy.init_node('learning_to_walk')
+    speed = 0
+
+    def reward(state, action):
+        # TODO make this a reasonable reward
+        global speed
+        speed = 0.2*rospy.get_param('~dt', 0.05)*state[8] + 0.8*speed
+        return state.sum() + action.sum()
+
+    def reset_speed():
+        global speed
+        speed = 0
 
     gazebo_synchronous = rospy.get_param('gazebo_syncrohonous', True)
 
     env = ROSPlant(
         dt=rospy.get_param('~dt', 0.05),
         reward_func=reward,
+        reset_callback=reset_speed,
         gazebo_synchronous=gazebo_synchronous)
     state = env.reset()
     t = rospy.get_time()
@@ -77,3 +88,4 @@ if __name__ == '__main__':
         cmd, standing = tripod_gait(
             state, cmd, dt, offset=offset, standing=standing)
         state, reward, info, done = env.step(cmd)
+        print(speed)
