@@ -6,24 +6,35 @@ import rospy
 from robot_learning.ros_plant import ROSPlant
 from robot_learning.srv import T2VInfo
 
+leg_speed_state = None
 
-def tripod_gait(state, cmd, dt, period=1.5, offset=0.785,
-                sweep_angle=1.0, duty_factor=0.685, standing=False):
+def tripod_gait(state, cmd, dt, period=1.4, offset=1.1,
+                sweep_angle=1.2, duty_factor=0.685, standing=False):
+    global leg_speed_state
     leg_angles = cmd[:6]
     slow_legs = (np.abs(
                     (leg_angles - offset + np.pi) % (2*np.pi)
                     - np.pi) < sweep_angle/2.0)
+
+    if leg_speed_state is None:
+        leg_speed_state = np.copy(slow_legs)
+
+    # mask for forcing synchronizing the angles at speed switches
+    mask = np.logical_xor(leg_speed_state, slow_legs)
+    leg_speed_state = np.copy(slow_legs)
+
     fast_legs = np.logical_not(slow_legs)
     slow_legs = np.where(slow_legs)[0]
     fast_legs = np.where(fast_legs)[0]
 
     slow_speed = -(2*np.pi)/(2*period*duty_factor)
     fast_speed = -(2*np.pi)/(2*period*(1.0-duty_factor))
-    cmd[6+slow_legs] = slow_speed
+
+    cmd[6+slow_legs] = slow_speed*mask[slow_legs]
     cmd[slow_legs] = (cmd[slow_legs] +
                       dt*slow_speed) % (2*np.pi)
 
-    cmd[6+fast_legs] = fast_speed
+    cmd[6+fast_legs] = fast_speed*mask[fast_legs]
     cmd[fast_legs] = (cmd[fast_legs] +
                       dt*fast_speed) % (2*np.pi)
 
@@ -33,10 +44,6 @@ def tripod_gait(state, cmd, dt, period=1.5, offset=0.785,
         else:
             cmd[:6:2] = offset
     return cmd, standing
-
-
-
-
 
 
 if __name__ == '__main__':
@@ -53,7 +60,7 @@ if __name__ == '__main__':
         global speed
         speed = 0
 
-    gazebo_synchronous = rospy.get_param('gazebo_syncrohonous', True)
+    gazebo_synchronous = rospy.get_param('gazebo_syncrohonous', False)
 
     env = ROSPlant(
         dt=rospy.get_param('~dt', 0.05),
@@ -66,7 +73,7 @@ if __name__ == '__main__':
     command_dims = command_dims_service().value
 
     cmd = np.zeros(command_dims)
-    offset = 0.985
+    offset = 1.1
     cmd[:6] = offset
 
     state, reward, info, done = env.step(cmd)
@@ -88,4 +95,3 @@ if __name__ == '__main__':
         cmd, standing = tripod_gait(
             state, cmd, dt, offset=offset, standing=standing)
         state, reward, info, done = env.step(cmd)
-        print(speed)

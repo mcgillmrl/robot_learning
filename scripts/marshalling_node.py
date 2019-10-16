@@ -2,13 +2,13 @@
 import rospy
 
 from std_srvs.srv import Empty as EmptySrv
-from std_srvs.srv import EmptyResponse as EmptySrvResponse
 from sensor_msgs.msg import Joy
 from aquacore.srv import SetAutopilotMode
 from aquacore.msg import PeriodicLegCommand
 from JoyState import JoyState
 
-from robot_learning.marshall import *
+from robot_learning.marshall import MarshallNode, FSM_STATES
+
 
 class AquaMarshallNode(MarshallNode):
     def __init__(self, name='aqua_marshall'):

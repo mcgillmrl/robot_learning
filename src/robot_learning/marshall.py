@@ -5,10 +5,12 @@ from robot_learning.srv import SetString, SetStringResponse
 
 from enum import IntEnum
 
+
 class FSM_STATES(IntEnum):
     USER = 1
     RL = 2
     USER_PROMPT = 3
+
 
 class MarshallNode(object):
     def __init__(self, name='rl_marshall'):
@@ -30,10 +32,11 @@ class MarshallNode(object):
         self.trigger_reset_sub = rospy.Subscriber(
             '/rl/trigger_reset', Empty, self.handle_trigger_reset)
 
-    def set_mode(self, newFSM): 
+    def set_mode(self, newFSM):
         if not (newFSM in FSM_STATES):
             msg_ = '%s: set_mode arg=%s unrecognized; expecting one of %s'
-            rospy.logerr(msg_ % (rospy.get_name(), newFSM, FSM_STATES._member_names_))
+            rospy.logerr(
+                msg_ % (rospy.get_name(), newFSM, FSM_STATES._member_names_))
             return
 
         if newFSM != self.FSM:
